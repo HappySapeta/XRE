@@ -1,4 +1,4 @@
-#version 330 core
+#version 440 core
 
 uniform vec3 color;
 

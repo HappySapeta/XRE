@@ -47,7 +47,7 @@ namespace xre
 		// Mesh Constructor
 		Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::vector<Texture>& textures);
 
-		void draw(const Shader& shader, const std::string model_name, const glm::mat4& model_matrix);
+		void draw(const Shader& shader, const std::string model_name, const glm::mat4& model_matrix, const bool& is_dynamic);
 
 	private:
 		unsigned int VAO, VBO, EBO;

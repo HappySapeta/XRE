@@ -1,6 +1,6 @@
-#version 330 core
+#version 440 core
 
-const float offset = 1/500.0;
+layout (location = 0) out vec4 FragColor;
 
 struct blur_options
 {
@@ -27,63 +27,39 @@ struct ssao_options
 
 
 in vec2 TexCoords;
-out vec4 FragColor;
 
 uniform sampler2D screenTexture;
-//uniform samplerCube screenTexture;
+uniform sampler2D blurTexture;
+
 uniform bool use_pfx;
 uniform bool gamma_correct = true;
 uniform float gamma = 2.2;
-uniform blur_options blur_options_i;
-uniform bloom_options bloom_options_i;
-uniform ssao_options ssao_options_i;
+uniform float exposure = 0.4;
 
-vec3 color;
+vec3 color_sample;
+vec3 out_color;
 
-void applyBloom()
+vec3 applyHDR(vec3 in_color)
 {
+	return vec3(1.0) - exp(-in_color * exposure);
 }
 
-void applyBlur()
+vec3 applyGammaCorrection(vec3 in_color)
 {
-}
-
-void applySSAO()
-{
-}
-
-void applyGammaCorrection()
-{
-	color = pow(color, vec3(1.0/gamma));
+	return pow(in_color, vec3(1.0/gamma));
 }
 
 void main()
 {	
-	if(!use_pfx)
-	{
-		//color = texture(screenTexture, vec3(TexCoords.x, -1.0, TexCoords.y-0.25)).rgb;
-		color = texture(screenTexture, TexCoords).rgb;
-	}
-	else
-	{
-		if(blur_options_i.enabled)
-		{
-			applyBlur();
-		}
-		if(bloom_options_i.enabled)
-		{
-			applyBloom();
-		}
-		if(ssao_options_i.enabled)
-		{
-			applySSAO();
-		}
-	}
+	color_sample = texture(screenTexture, TexCoords).rgb;
+	vec3 bloomColor = texture(blurTexture, TexCoords).rgb;
 
-	if(gamma_correct)
-	{
-		applyGammaCorrection();
-	}
+	color_sample += bloomColor;
 
-	FragColor = vec4(color,1.0);
+	// HDR
+	// reinhard tone mapping
+	out_color = applyHDR(color_sample);
+	out_color = applyGammaCorrection(out_color);
+
+	FragColor = vec4(out_color,1.0);
 }

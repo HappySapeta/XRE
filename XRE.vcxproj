@@ -49,6 +49,8 @@
     <None Include="Source\Resources\Shaders\depth_map_geometry_shader.geom" />
     <None Include="Source\Resources\Shaders\depth_map_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\gaussian_blur_shader.frag" />
+    <None Include="Source\Resources\Shaders\geometry_shader.geom" />
     <None Include="Source\Resources\Shaders\light_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\light_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\quad_fragment_shader.frag" />
