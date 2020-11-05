@@ -1,7 +1,6 @@
 #version 440 core
 
 #define N_POINT 3
-#define N_SPOT 1
 
 layout (location = 0) out vec4 FragColor;
 layout (location = 1) out vec4 BrightColor;
@@ -21,20 +20,6 @@ struct PointLight {
 	float kq;
 };
 
-struct SpotLight{
-	vec3 position;
-	vec3 direction;
-	
-	vec3 color;
-	
-	float innercutoff;
-	float outercutoff;
-	
-	float kc;
-	float kl;
-	float kq;
-};
-
 in vec3 FragPos;  
 in vec2 TexCoords;
 in vec4 FragPosLightSpace;
@@ -43,7 +28,6 @@ in vec4 FragPosLightSpace;
 
 uniform DirectionalLight directionalLight;
 uniform PointLight pointLights[N_POINT];
-uniform SpotLight spotLights[N_SPOT];
 
 //-------------------------
 
@@ -126,7 +110,7 @@ float CheckDirectionalShadow(float bias, vec3 light_pos)
 {	
 	float shadow = 0.0;
 	
-	int pcf_samples = 32;
+	int pcf_samples = 16;
 	int penumbra_test_samples = 8;
 
 	vec3 projCoords = FragPosLightSpace.xyz / FragPosLightSpace.w;
@@ -137,7 +121,7 @@ float CheckDirectionalShadow(float bias, vec3 light_pos)
 	float current_depth = length(light_to_frag);
 	vec3 light_to_frag_direction = normalize(light_to_frag);
 
-	float count = sampleDirectionalShadow(penumbra_test_samples, 1.0, projCoords.xy ,bias, current_depth / far, false);
+	float count = sampleDirectionalShadow(penumbra_test_samples, 8.0, projCoords.xy ,bias, current_depth / far, false);
 	
 	if(count == 0.0)
 	{
@@ -149,11 +133,7 @@ float CheckDirectionalShadow(float bias, vec3 light_pos)
 	}
 	else
 	{
-		float pcss_mult = 10.0;
-		float distance_from_blocker = fabs(current_depth/far - texture(shadow_depth_map_directional, projCoords.xy).r);
-		float pcss = max(min(distance_from_blocker * (current_depth / far) * pcss_mult,10.0),1.0); // distance_from_blocker is 0, fix that idiot!
-
-		shadow = sampleDirectionalShadow(pcf_samples, pcss, projCoords.xy, bias, current_depth / far, true);
+		shadow = sampleDirectionalShadow(pcf_samples,2.0, projCoords.xy, bias, current_depth / far, true);
 		shadow /= pcf_samples;
 	}
 
@@ -308,7 +288,7 @@ vec3 CalcPoint(PointLight pl, const vec3 diffuse_texture_color, const vec3 specu
 	//bias = max(0.01 * (1 - dot(normal, normalize(lightdir))), 0.001);
 
 	float point_shadow = 0.0;
-	point_shadow = CheckPointShadow(pl.position, index, bias);
+	//point_shadow = CheckPointShadow(pl.position, index, bias);
 
 	vec3 ambient = pl.color * diffuse_texture_color; //ambient
 	
@@ -324,29 +304,6 @@ vec3 CalcPoint(PointLight pl, const vec3 diffuse_texture_color, const vec3 specu
 
 	return ambient * 0.001 + diffuse * attenuation * 0.7 * (1.0 - point_shadow) + specular * attenuation * 0.9 * (1.0 - point_shadow);
 }
-
-vec3 CalcSpot(SpotLight sl, const vec3 diffuse_texture_color, const vec3 specular_texture_color, const vec3 normal, const vec3 viewdir, const vec3 lightdir)
-{
-	vec3 ambient = sl.color * diffuse_texture_color; //ambient
-	
-	float diff = max(dot(normalize(normal), normalize(lightdir)), 0.0);
-	vec3 diffuse = sl.color * diff * diffuse_texture_color; // diffuse
-	
-	vec3 halfway = normalize(lightdir + viewdir);
-	float spec = pow(max(dot(normalize(normal), normalize(halfway)),0.0),shininess);
-	vec3 specular = sl.color * spec * specular_texture_color; // specular
-	
-	float distance = length(sl.position - FragPos);
-	float theta = dot(normalize(lightdir), normalize(-sl.direction));
-	float epsilon = (sl.innercutoff - sl.outercutoff);
-	
-	float cutoffintensity = (theta - sl.outercutoff) / epsilon;
-	float falloffintensity = 1/(sl.kc + sl.kl * distance + sl.kq * distance * distance);
-	float intensity = clamp(cutoffintensity * falloffintensity, 0.0, 1.0);
-	
-	return ambient * 0.1 + diffuse * intensity * 0.7  + specular * intensity * 0.9;
-}
-
 
 void main()
 {
@@ -385,17 +342,13 @@ void main()
 
 	//color = max(CalcDirectional(diffusetexture_sample.rgb, speculartexture_sample, tNormal, viewdir),vec3(0.0));
 	
-	for(int i=0; i<N_POINT; i++)
+	for(int i=0; i<3; i++)
 	{
 		vec3 lightDir = normalize(light_pos_tspace[1 + i] - frag_pos_tspace);
 		color += max(CalcPoint(pointLights[i], diffusetexture_sample.rgb, speculartexture_sample, tNormal, viewdir, lightDir, i),vec3(0.0));
 	}
-	
-	for(int i=0; i<N_SPOT; i++)
-	{
-		//color += max(CalcSpot(spotLights[i], diffusetexture, speculartexture, Normal, viewdir, (spotLights[i].position - FragPos)),vec3(0.0));
-	}
 
-	BrightColor = vec4(BloomThresholdFilter(color, 6.5), 1.0);
+	//color = tNormal;
+	BrightColor = vec4(0.0);//vec4(BloomThresholdFilter(color, 6.5), 1.0);
 	FragColor = vec4(color , 1.0);
-} 
+}

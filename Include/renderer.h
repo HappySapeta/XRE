@@ -42,24 +42,27 @@ namespace xre
 			glm::mat4 point_light_space_matrix_5;
 		};
 
-		RenderSystem(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p);
+		RenderSystem(unsigned int screen_width, unsigned int screen_height, bool is_deferred,const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p);
 
-		void createFramebuffers();
+		void createForwardFramebuffers();
 		void createQuad();
-		void createShadowMapFramebuffer();
+		void createShadowMapFramebuffers();
+		void createDeferredBuffers();
+		void clearDeferredBuffers();
 		void createDirectionalLightMatrix(glm::vec3 light_position, glm::vec3 light_front);
 		void createPointLightMatrices(glm::vec3 light_position, unsigned int light_index);
-		void createGBuffer();
-		void clearRenderFramebuffer();
+		void clearForwardFramebuffer();
 		void clearDefaultFramebuffer();
 		void clearDirectionalShadowMapFramebuffer();
 		void clearPointShadowFramebufferStatic();
 		void clearPointShadowFramebufferDynamic();
-		void clearPingPongBuffers();
+		void clearPingPongFramebuffers();
 		void directionalShadowPass();
 		void pointShadowPass();
-		void colorPass();
-		void blurPass();
+		void ForwardColorPass();
+		void deferredFillPass();
+		void deferredColorPass();
+		void blurPass(unsigned int input_texture);
 
 		static RenderSystem* instance;
 
@@ -68,26 +71,45 @@ namespace xre
 
 		// Forward Shading
 		unsigned int
-			FBO,
-			FBO_primary_texture,
-			FBO_secondary_texture,
-			FBO_Color_Attachments[2],
-			FBO_depth_texture,
-			RBO,
-			PingPongFBO[2],
-			PingPong_textures[2];
+			ForwardFramebuffer,
+			ForwardFramebuffer_primary_texture,
+			ForwardFramebuffer_secondary_texture,
+			ForwardFramebuffer_Color_Attachments[2],
+			ForwardFramebuffer_depth_texture,
+			ForwardFramebufferRenderbuffer,
+			PingPongFramebuffers[2],
+			PingPongFramebuffer_textures[2];
 
 		// Deferred Shading
-		unsigned int GBuffer;
-		unsigned int GB_position, GB_albedo, GB_specular, GB_normal;
-		unsigned int GB_attachments[4];
+		unsigned int DeferredDataFrameBuffer,
+			DeferredFinalBuffer;
 
+		unsigned int DeferredRenderBuffer;
+
+		unsigned int DeferredFinal_primary_texture,
+			DeferredFinal_secondary_texture;
+
+		unsigned int DeferredGbuffer_position,
+			DeferredGbuffer_color,
+			DeferredGbuffer_specular,
+			DeferredGbuffer_model_normal,
+			DeferredGbuffer_tangent,
+			DeferredGbuffer_texture_normal;
+
+		unsigned int DeferredFrameBuffer_primary_color_attachments[6];
+		unsigned int DeferredFinal_attachments[2];
+
+		Shader* deferredFillShader;
+		Shader* deferredColorShader;
 
 
 		bool horizontal = true, first_iteration = true;
 		bool first_draw = true;
 
-		unsigned int directional_shadow_framebuffer, directional_shadow_framebuffer_depth_texture; // A cubermap texture for a directional light to facilitate compatibility with the geometry shader.
+		unsigned int directional_shadow_framebuffer,
+					 directional_shadow_framebuffer_depth_texture, // A cubermap texture for a directional light to facilitate compatibility with the geometry shader.
+					 directional_shadow_framebuffer_renderbuffer;
+		
 		unsigned int point_shadow_framebuffer_static[5], point_shadow_framebuffer_dynamic[5],
 					 point_shadow_framebuffer_depth_texture_cubemap_static[5],
 					 point_shadow_framebuffer_depth_texture_cubemap_dynamic[5]; // I challenge you to pronounce the entire name in 16 ms.
@@ -110,6 +132,8 @@ namespace xre
 		Shader* depthShader;
 		Shader* blurShader;
 		unsigned int screen_texture;
+
+		bool deferred;
 
 		//---------------------------------------------
 
@@ -157,7 +181,7 @@ namespace xre
 
 	public:
 		static RenderSystem* renderer();
-		static RenderSystem* renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p);
+		static RenderSystem* renderer(unsigned int screen_width, unsigned int screen_height, bool  is_deferred, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p);
 
 		RenderSystem(RenderSystem& other) = delete;
 
