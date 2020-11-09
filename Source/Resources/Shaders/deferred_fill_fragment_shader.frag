@@ -6,12 +6,14 @@ layout (location = 2) out vec3 FragModelNormalOut;
 layout (location = 3) out vec3 FragTangentOut;
 layout (location = 4) out vec3 FragTextureNormalOut;
 layout (location = 5) out vec3 FragPosOut;
+layout (location = 6) out vec3 FragModelNormalView;
 
 in vec2 TexCoords;
 in vec3 FragPos;
 
 in vec3 T;
 in vec3 N;
+in vec3 N_view;
 
 //-------------------------
 
@@ -33,6 +35,6 @@ void main()
 	FragModelNormalOut = N;
 	FragTangentOut = T;
 	FragTextureNormalOut = texture(texture_normal, TexCoords).rgb;
-
 	FragPosOut = FragPos;
+	FragModelNormalView = N_view;
 }

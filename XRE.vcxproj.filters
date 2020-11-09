@@ -95,7 +95,6 @@
     <None Include="Source\Resources\Shaders\quad_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\light_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\light_vertex_shader.vert" />
-    <None Include="Source\Resources\Shaders\depth_map_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\depth_map_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\depth_map_geometry_shader.geom" />
     <None Include="Source\Resources\Shaders\gaussian_blur_shader.frag" />
@@ -106,5 +105,9 @@
     <None Include="Source\Resources\Shaders\deferred_fill_tspace_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\deferred_fill_tspace_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\deferred_fill_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\depth_map_directional_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\depth_map_point_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\ssao_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\ssao_vertex_shader.vert" />
   </ItemGroup>
 </Project>

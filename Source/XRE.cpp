@@ -85,7 +85,7 @@ int main()
 		return -1;
 	}
 
-	bool deferred = true; // Make this false, for forward shading.
+	bool deferred = false; // Make this false, for forward shading.
 
 	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, deferred,glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f, 100.0f, 1024 * 2, 2 * 1024);
 	renderer->SwitchPfx(false);
@@ -95,11 +95,11 @@ int main()
 	xre::CameraMatrix cm;
 
 	// Lights setup
-	xre::DirectionalLight directional_light = xre::DirectionalLight(glm::vec3(0.0f, 50.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 10.0f, "directionalLight");
+	//xre::DirectionalLight directional_light = xre::DirectionalLight(glm::vec3(0.0f, 20.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 10.0f, "directionalLight");
 
-	//xre::PointLight point_light_0 = xre::PointLight(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1, 0.7f, 1.8f, 10.0f, "pointLights[0]");
-	//xre::PointLight point_light_1 = xre::PointLight(glm::vec3(8.0f, 2.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[1]");
-	//xre::PointLight point_light_2 = xre::PointLight(glm::vec3(-8.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[2]");
+	xre::PointLight point_light_0 = xre::PointLight(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1, 0.7f, 1.8f, 10.0f, "pointLights[0]");
+	xre::PointLight point_light_1 = xre::PointLight(glm::vec3(8.0f, 2.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[1]");
+	xre::PointLight point_light_2 = xre::PointLight(glm::vec3(-8.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[2]");
 
 	// Imported object render test
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -163,7 +163,7 @@ int main()
 		LOGGER->log(xre::INFO, "XRE", "Now rendering...");
 
 		auto start = std::chrono::high_resolution_clock::now();
-		directional_light.m_position = glm::vec3(0.0f, 50.0f, 0.0f) + glm::vec3(30 * glm::cos(glm::radians(glfwGetTime() * 5.0)), 0.0, 30 * glm::sin(glm::radians(glfwGetTime() * 5.0)));
+		//directional_light.m_position = glm::vec3(0.0f, 50.0f, 0.0f) + glm::vec3(30 * glm::cos(glm::radians(glfwGetTime() * 5.0)), 0.0, 30 * glm::sin(glm::radians(glfwGetTime() * 5.0)));
 		cm = camera.UpdateCamera(2.0f * delta_time.count(), 20.0f * delta_time.count());
 		renderer->setCameraMatrices(&cm.view, &cm.projection, &camera.position);
 		backpack.rotate(glm::cos(glm::radians(glfwGetTime())) * 0.001f, glm::vec3(1.0f));

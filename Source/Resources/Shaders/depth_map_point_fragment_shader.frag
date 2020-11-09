@@ -4,10 +4,10 @@ uniform float farPlane;
 uniform vec3 lightPos;
 
 in vec4 FragPos;
+float depth;
 
 void main()
 {	
-	float depth = length(FragPos.xyz - lightPos);
-	depth /= farPlane;
+	depth = length(FragPos.xyz - lightPos)/farPlane;
 	gl_FragDepth = depth;
 }

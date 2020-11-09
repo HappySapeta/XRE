@@ -34,7 +34,7 @@ uniform sampler2D blurTexture;
 uniform bool use_pfx;
 uniform bool gamma_correct = true;
 uniform float gamma = 2.2;
-uniform float exposure = 0.4;
+uniform float exposure = 0.8;
 
 vec3 color_sample;
 vec3 out_color;
@@ -54,8 +54,7 @@ void main()
 	color_sample = texture(screenTexture, TexCoords).rgb;
 	vec3 bloomColor = texture(blurTexture, TexCoords).rgb;
 
-	color_sample += bloomColor;
-
+	//color_sample += bloomColor;
 	// HDR
 	// reinhard tone mapping
 	out_color = applyHDR(color_sample);

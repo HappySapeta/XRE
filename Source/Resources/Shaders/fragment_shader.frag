@@ -255,7 +255,7 @@ float CheckPointShadow(vec3 point_light_pos,int index, float bias)
 	vec3 light_to_frag_direction = normalize(light_to_frag);
 
 	int pcf_samples = 16;
-	int penumbra_test_samples = 5;
+	int penumbra_test_samples = 8;
 
 
 	float count = 0.0;
@@ -271,11 +271,7 @@ float CheckPointShadow(vec3 point_light_pos,int index, float bias)
 	}
 	else
 	{
-		float pcss_mult = 2.0;
-		float distance_from_blocker = fabs(current_depth - length(FragPos - point_light_pos)); // distance_from_blocker is 0, fix that idiot!
-		float pcss = max(min(distance_from_blocker * current_depth * pcss_mult,5.0),1.0);
-
-		shadow = samplePointShadow(pcf_samples, 0.002 * pcss, bias, current_depth / far, light_to_frag_direction,true, index);
+		shadow = samplePointShadow(pcf_samples, 0.004 , bias, current_depth / far, light_to_frag_direction,true, index);
 		shadow /= pcf_samples;
 	}
 
@@ -288,7 +284,7 @@ vec3 CalcPoint(PointLight pl, const vec3 diffuse_texture_color, const vec3 specu
 	//bias = max(0.01 * (1 - dot(normal, normalize(lightdir))), 0.001);
 
 	float point_shadow = 0.0;
-	//point_shadow = CheckPointShadow(pl.position, index, bias);
+	point_shadow = CheckPointShadow(pl.position, index, bias);
 
 	vec3 ambient = pl.color * diffuse_texture_color; //ambient
 	
@@ -349,6 +345,6 @@ void main()
 	}
 
 	//color = tNormal;
-	BrightColor = vec4(0.0);//vec4(BloomThresholdFilter(color, 6.5), 1.0);
+	BrightColor = vec4(BloomThresholdFilter(color, 6.5), 1.0);
 	FragColor = vec4(color , 1.0);
 }

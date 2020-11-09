@@ -11,6 +11,7 @@ out vec3 FragPos;
 
 out vec3 T;
 out vec3 N;
+out vec3 N_view;
 
 uniform mat4 view;
 uniform mat4 model;
@@ -25,11 +26,14 @@ void main()
 	// Tangent Space Calculation
 
 	mat3 normalMatrix = transpose(inverse(mat3(model)));
+	mat3 normalMatrix_view = transpose(inverse(mat3(view * model)));
 
 	T = normalize(vec3(normalMatrix * aTangents));
 	N = normalize(vec3(normalMatrix * aNormal));
 
 	T = normalize(T - dot(T, N) * N);
+
+	N_view = normalize(vec3(normalMatrix_view * aNormal));
 
 	//----------------------------------------------------------------------
 
