@@ -1,20 +1,24 @@
 #version 440 core
 
+# define NUM_SAMPLES 4
+
 out float FragColor;
 
 in vec2 TexCoords;
+
+vec2 poissonDisk[64];
 
 uniform sampler2D position_texture;
 uniform sampler2D normal_texture;
 uniform sampler2D noise_texture;
 
-uniform vec3 kernel[16];
+uniform vec3 kernel[NUM_SAMPLES];
 uniform mat4 projection;
 uniform mat4 view;
 uniform float radius = 0.4;
-uniform float bias = 0.01;
+uniform float bias = 0.1;
 
-const vec2 noiseScale = textureSize(position_texture, 0)/4.0;
+const vec2 noiseScale = textureSize(position_texture, 0) / 4.0;
 
 void main()
 {
@@ -29,8 +33,10 @@ void main()
 
 	float occlusion = 0.0;
 
-	for(int i=0; i<16; ++i)
+
+	for(int i=0; i<NUM_SAMPLES; ++i)
 	{
+
 		vec3 kernel_sample = TBN * kernel[i];
 		kernel_sample = FragPos + kernel_sample * radius;
 
@@ -45,6 +51,6 @@ void main()
 		occlusion += (sample_depth >= kernel_sample.z + bias ? 1.0 : 0.0) * rangeCheck;
 	}
 
-	occlusion = 1.0 - (occlusion/ 16);
-	FragColor = occlusion;
+	occlusion = (occlusion / (NUM_SAMPLES));
+	FragColor = pow(1.0 - occlusion, 2.0);
 }

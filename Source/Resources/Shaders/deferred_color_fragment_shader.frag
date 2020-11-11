@@ -37,14 +37,15 @@ struct SpotLight{
 };
 // ------------------------
 
+vec3 FragPos;
 vec4 FragPosLightSpace;
 in vec2 TexCoords;
 
 // Shadow Textures -------------------------------
 uniform sampler2D shadow_depth_map_directional;
 
-uniform samplerCube point_shadow_framebuffer_depth_texture_cubemap_static[5];
-uniform samplerCube point_shadow_framebuffer_depth_texture_cubemap_dynamic[5];
+uniform samplerCube point_shadow_framebuffer_depth_color_texture_static[5];
+uniform samplerCube point_shadow_framebuffer_depth_color_texture_dynamic[5];
 // -----------------------
 
 vec2 texelSize = vec2(1.0 / textureSize(shadow_depth_map_directional, 0));
@@ -61,6 +62,8 @@ uniform mat4 directional_light_space_matrix;
 uniform bool directional_lighting_enabled;
 
 // -----------------------
+
+
 
 uniform float near;
 uniform float far;
@@ -124,7 +127,7 @@ vec3 CalcDirectional(vec3 diffuse_texture_color,float specular_texture_value,vec
 	float directional_shadow = 0.0;
 	directional_shadow = CheckDirectionalShadow(bias, directionalLight.position, FragPos);
 
-	vec3 ambient = directionalLight.color * diffuse_texture_color; //ambient
+	vec3 ambient = directionalLight.color * diffuse_texture_color * ambient_occlusion; //ambient
 	
 	float diff = max(dot(normalize(normal), normalize(lightdir)),0.0);
 	vec3 diffuse = directionalLight.color * diff * diffuse_texture_color; //diffuse
@@ -136,6 +139,24 @@ vec3 CalcDirectional(vec3 diffuse_texture_color,float specular_texture_value,vec
 	return (ambient * 0.01 + diffuse * 0.8 * (1.0 - directional_shadow) + specular * 1.0 * (1.0 - directional_shadow)) * ambient_occlusion;
 }
 
+float chebyshevUpperBound(float dist, vec2 moments)
+{
+	float p_max;
+
+	if(dist <= moments.x)
+	{
+		return 1.0;
+	}
+
+	float variance = moments.y - (moments.x * moments.x);
+	variance = max(variance, 0.00002);
+
+	float d = dist - moments.x;
+	p_max = variance / (variance + d * d);
+
+	return p_max;
+}
+
 float samplePointShadow(float bias, float current_depth, vec3 light_to_frag_direction,int shadow_map_index)
 {
 	float s = 0.0;
@@ -143,37 +164,12 @@ float samplePointShadow(float bias, float current_depth, vec3 light_to_frag_dire
 	float static_depth, dynamic_depth;
 	float closest_depth;
 
-	// I dont want to, but I am forced to because, variable indices do not work with uniform arrays unfortunately.
-	if(shadow_map_index == 0)
-	{
-		static_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_static[0], normalize(light_to_frag_direction)).r;
-		dynamic_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_dynamic[0], normalize(light_to_frag_direction )).r;
-	}
-	else if(shadow_map_index == 1)
-	{
-		static_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_static[1], normalize(light_to_frag_direction )).r;
-		dynamic_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_dynamic[1], normalize(light_to_frag_direction )).r;
-	}
-	else if(shadow_map_index == 2)
-	{
-		static_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_static[2], normalize(light_to_frag_direction)).r;
-		dynamic_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_dynamic[2], normalize(light_to_frag_direction)).r;
-	}
-	/*
-	else if(shadow_map_index == 3)
-	{
-		closest_depth = texture(shadow_depth_map_cubemap[3], normalize(light_to_frag_direction + restrictedOffset)).r;
-	}
-	else if(shadow_map_index == 4)
-	{
-		closest_depth = texture(shadow_depth_map_cubemap[4], normalize(light_to_frag_direction + restrictedOffset)).r;
-	}
-	*/
+	static_depth = texture(point_shadow_framebuffer_depth_color_texture_static[shadow_map_index], normalize(light_to_frag_direction)).r;
+	dynamic_depth = texture(point_shadow_framebuffer_depth_color_texture_dynamic[shadow_map_index], normalize(light_to_frag_direction)).r;
 
 	closest_depth = static_depth < dynamic_depth ? static_depth : dynamic_depth;
 	s += current_depth - bias > closest_depth ? 1.0 : 0.0;
 
-	
 	return s;
 }
 float CheckPointShadow(vec3 point_light_pos,int index, float bias, vec3 FragPos)
@@ -192,16 +188,16 @@ float CheckPointShadow(vec3 point_light_pos,int index, float bias, vec3 FragPos)
 
 vec3 CalcPoint(PointLight pl,vec3 diffuse_texture_color, float specular_texture_value,vec3 normal, vec3 FragPos ,vec3 viewdir, vec3 lightdir,int index)
 {
-	float bias = 0.0;
+	float bias = 0.0001;
 	//bias = max(0.01 * (1 - dot(normal, normalize(lightdir))), 0.001);
 
 	float point_shadow = 0.0;
 	point_shadow = CheckPointShadow(pl.position, index, bias, FragPos);
 
-	vec3 ambient = pl.color * diffuse_texture_color; //ambient
+	vec3 ambient = pl.color * diffuse_texture_color * ambient_occlusion; //ambient
 	
 	float diff = max(dot(normalize(normal), normalize(lightdir)), 0.0);
-	vec3 diffuse = pl.color * diff * diffuse_texture_color; // diffuse
+	vec3 diffuse = pl.color * diff * diffuse_texture_color ; // diffuse
 	
 	vec3 halfway = normalize(lightdir + viewdir);
 	float spec = pow(max(dot(normalize(normal), normalize(halfway)),0.0),shininess);
@@ -210,7 +206,7 @@ vec3 CalcPoint(PointLight pl,vec3 diffuse_texture_color, float specular_texture_
 	float distance = length(pl.position - FragPos);
 	float attenuation = 1.0/(pl.kc + pl.kl * distance + pl.kq * distance * distance);
 
-	return (ambient * 0.001 + diffuse * attenuation * 0.7 * (1.0 - point_shadow) + specular * attenuation * 0.9 * (1.0 - point_shadow)) * ambient_occlusion;
+	return (ambient * 0.001 + diffuse * attenuation * 0.7 * (1.0 - point_shadow) + specular * attenuation * 0.9 * (1.0 - point_shadow));
 }
 
 vec3 BloomThresholdFilter(vec3 in_color, float threshold)
@@ -232,7 +228,7 @@ void main()
 
 	vec3 diffuse_texture_color = texture(diffuse_texture, TexCoords).rgb;
 	float specular_texture_value = texture(specular_texture, TexCoords).r;
-	vec3 FragPos = texture(position_texture, TexCoords).xyz;
+	FragPos = texture(position_texture, TexCoords).xyz;
 	vec3 normal_from_texture = texture(texture_normal_texture, TexCoords).xyz * 2.0 - 1.0;
 	ambient_occlusion = texture(ssao_texture, TexCoords).r;
 
@@ -261,7 +257,7 @@ void main()
 		color += max(CalcDirectional(diffuse_texture_color, specular_texture_value, normal_from_texture, viewdir, lightdir, FragPos),vec3(0.0));
 	}
 
-	for(int i=0; i<0; ++i)
+	for(int i=0; i<3; ++i)
 	{
 		lightdir = TBN * pointLights[i].position - FragPos_tspace;
 		viewdir = TBN * camera_pos - FragPos_tspace;

@@ -38,8 +38,8 @@ uniform sampler2D texture_normal;
 // Shadow Textures -------------------------------
 uniform sampler2D shadow_depth_map_directional;
 
-uniform samplerCube point_shadow_framebuffer_depth_texture_cubemap_static[5];
-uniform samplerCube point_shadow_framebuffer_depth_texture_cubemap_dynamic[5];
+uniform samplerCube point_shadow_framebuffer_depth_color_texture_static[5];
+uniform samplerCube point_shadow_framebuffer_depth_color_texture_dynamic[5];
 
 // ------------------------------------------------
 
@@ -212,32 +212,8 @@ float samplePointShadow(int num_samples, float sample_spread,  float bias, float
 
 		float closest_depth;
 
-		// I dont want to, but I am forced to because, variable indices do not work with uniform arrays unfortunately.
-		if(shadow_map_index == 0)
-		{
-			static_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_static[0], normalize(light_to_frag_direction + restrictedOffset)).r;
-			dynamic_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_dynamic[0], normalize(light_to_frag_direction + restrictedOffset)).r;
-		}
-		else if(shadow_map_index == 1)
-		{
-			static_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_static[1], normalize(light_to_frag_direction + restrictedOffset)).r;
-			dynamic_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_dynamic[1], normalize(light_to_frag_direction + restrictedOffset)).r;
-		}
-		else if(shadow_map_index == 2)
-		{
-			static_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_static[2], normalize(light_to_frag_direction + restrictedOffset)).r;
-			dynamic_depth = texture(point_shadow_framebuffer_depth_texture_cubemap_dynamic[2], normalize(light_to_frag_direction + restrictedOffset)).r;
-		}
-		/*
-		else if(shadow_map_index == 3)
-		{
-			closest_depth = texture(shadow_depth_map_cubemap[3], normalize(light_to_frag_direction + restrictedOffset)).r;
-		}
-		else if(shadow_map_index == 4)
-		{
-			closest_depth = texture(shadow_depth_map_cubemap[4], normalize(light_to_frag_direction + restrictedOffset)).r;
-		}
-		*/
+		static_depth = texture(point_shadow_framebuffer_depth_color_texture_static[shadow_map_index], normalize(light_to_frag_direction + restrictedOffset)).r;
+		dynamic_depth = texture(point_shadow_framebuffer_depth_color_texture_dynamic[shadow_map_index], normalize(light_to_frag_direction + restrictedOffset)).r;
 
 		closest_depth = static_depth < dynamic_depth ? static_depth : dynamic_depth;
 		s += current_depth - bias > closest_depth ? 1.0 : 0.0;

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <filesystem>
 
 // Custom
 #include <shader.h>
@@ -18,7 +19,7 @@
 #include <sstream>
 
 static xre::LogModule* LOGGER = xre::LogModule::getLoggerInstance();
-const unsigned int SCR_WIDTH = 1920, SCR_HEIGHT = 1080;
+const unsigned int SCR_WIDTH = 1600, SCR_HEIGHT = 900;
 void framebufferSizeCallback(GLFWwindow* window, int width, int height); // Do not define any type other than 'int' for width / height parameters. e.g. Incorrect : const unsigned int& width, Correct : int width.
 
 GLFWwindow* GLFWWindowManager(const int& major_version, const int& minor_version, const GLenum& opengl_profile)
@@ -68,6 +69,7 @@ GLFWwindow* GLFWWindowManager(const int& major_version, const int& minor_version
 
 int main()
 {
+	std::cout << std::filesystem::current_path();
 	// Set logging modules log level
 	LOGGER->setLogLevel(xre::LOG_LEVEL::INFO, xre::LOG_LEVEL_FILTER_TYPE::GREATER_OR_EQUAL);
 
@@ -85,7 +87,7 @@ int main()
 		return -1;
 	}
 
-	bool deferred = false; // Make this false, for forward shading.
+	bool deferred = true; // Make this false, for forward shading.
 
 	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, deferred,glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f, 100.0f, 1024 * 2, 2 * 1024);
 	renderer->SwitchPfx(false);
@@ -104,7 +106,7 @@ int main()
 	// Imported object render test
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-	xre::Model ferrari("D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Models/formula1/formula1/Formula_1_mesh.fbx", "ferrari",
+	xre::Model ferrari("./Source/Resources/Models/formula1/formula1/Formula_1_mesh.fbx", "ferrari",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
 		| aiProcess_FlipUVs
@@ -115,7 +117,7 @@ int main()
 	ferrari.translate(glm::vec3(0.0f));
 	ferrari.scale(glm::vec3(0.01f));
 
-	xre::Model backpack("D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Models/backpack/backpack.obj", "backpack",
+	xre::Model backpack("./Source/Resources/Models/backpack/backpack.obj", "backpack",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
 		| aiProcess_OptimizeMeshes
@@ -125,7 +127,7 @@ int main()
 	backpack.translate(glm::vec3(-1.0f, 1.0f, 0.0f));
 	backpack.scale(glm::vec3(0.1f));
 
-	xre::Model sponza("D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Models/sponza/sponza.obj", "sponza",
+	xre::Model sponza("./Source/Resources/Models/sponza/sponza.obj", "sponza",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
 		| aiProcess_OptimizeMeshes
@@ -139,12 +141,12 @@ int main()
 
 	if (!deferred)
 	{
-		ferrari_shader = new xre::Shader("D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Shaders/vertex_shader.vert",
-			"D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Shaders/fragment_shader.frag");
-		backpack_shader = new xre::Shader("D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Shaders/vertex_shader.vert",
-			"D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Shaders/fragment_shader.frag");
-		sponza_shader = new xre::Shader("D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Shaders/vertex_shader.vert",
-			"D:/Github/XperimentalRenderingEngine/XRE/Source/Resources/Shaders/fragment_shader.frag");
+		ferrari_shader = new xre::Shader("./Source/Resources/Shaders/vertex_shader.vert",
+			"./Source/Resources/Shaders/fragment_shader.frag");
+		backpack_shader = new xre::Shader("./XRE/Source/Resources/Shaders/vertex_shader.vert",
+			"./Source/Resources/Shaders/fragment_shader.frag");
+		sponza_shader = new xre::Shader("./Source/Resources/Shaders/vertex_shader.vert",
+			"./Source/Resources/Shaders/fragment_shader.frag");
 	}
 
 	// Additional data

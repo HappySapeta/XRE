@@ -124,12 +124,15 @@ namespace xre
 		bool first_draw = true;
 
 		unsigned int directional_shadow_framebuffer,
-			directional_shadow_framebuffer_depth_texture, // A cubermap texture for a directional light to facilitate compatibility with the geometry shader.
+			directional_shadow_framebuffer_depth_texture, // A cubemap texture for a directional light to facilitate compatibility with the geometry shader.
 			directional_shadow_framebuffer_renderbuffer;
 
 		unsigned int point_shadow_framebuffer_static[5], point_shadow_framebuffer_dynamic[5],
-			point_shadow_framebuffer_depth_texture_cubemap_static[5],
-			point_shadow_framebuffer_depth_texture_cubemap_dynamic[5]; // I challenge you to pronounce the entire name in 16 ms.
+			point_shadow_framebuffer_depth_texture_cubemap_static[5], point_shadow_framebuffer_depth_texture_cubemap_dynamic[5],
+			point_shadow_framebuffer_depth_color_texture_static[5], point_shadow_framebuffer_depth_color_texture_dynamic[5];
+
+		unsigned int point_shadow_depth_attachment_static[5], point_shadow_depth_attachment_dynamic[5];
+
 		unsigned int shadow_map_width, shadow_map_height;
 		float light_near_plane, light_far_plane;
 
