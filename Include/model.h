@@ -29,6 +29,7 @@ namespace xre
 		void rotate(float amount, glm::vec3 axes);
 		void scale(glm::vec3 axes);
 
+		bool dynamic;
 		glm::mat4 model_matrix;
 
 	private:

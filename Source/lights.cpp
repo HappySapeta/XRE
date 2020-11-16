@@ -59,6 +59,7 @@ void DirectionalLight::SetDirection(const glm::vec3& direction)
 
 void  DirectionalLight::SetShaderAttrib(const std::string& lightuniform, const Shader& shader)
 {
+	shader.setVec3(lightuniform + ".position", m_position);
 	shader.setVec3(lightuniform + ".direction", m_direction);
 	shader.setVec3(lightuniform + ".color", m_color * m_intensityMultiplier);
 }

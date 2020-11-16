@@ -32,6 +32,8 @@ Model::Model(const std::string& file_path, const std::string& name, unsigned int
 		LOGGER->log(ERROR, "Model Import", "Failed to load model - " + file_path + " : Scene is empty!");
 		return;
 	}
+
+	dynamic = false;
 	model_matrix = glm::mat4(1.0);
 	directory = file_path.substr(0, file_path.find_last_of('/'));
 	processNode(scene->mRootNode);
@@ -43,7 +45,7 @@ void Model::draw(const Shader& model_shader,const std::string& model_name)
 	{
 		if (meshes[i] != NULL)
 		{
-			meshes[i]->draw(model_shader, model_name, model_matrix);
+			meshes[i]->draw(model_shader, model_name, model_matrix, dynamic);
 		}
 	}
 }
@@ -226,7 +228,7 @@ unsigned int Model::GetTexture(const std::string& texture_path, bool gamma)
 		else if(num_channels == 4)
 			format = GL_RGBA;
 
-		unsigned int internal_format = gamma ? GL_SRGB : format;
+		unsigned int internal_format = gamma ? GL_SRGB_ALPHA : format;
 
 		glBindTexture(GL_TEXTURE_2D, texture_id);
 		glTexImage2D(GL_TEXTURE_2D, 0,internal_format, texture_width, texture_height, 0, format, GL_UNSIGNED_BYTE, data);

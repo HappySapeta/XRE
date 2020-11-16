@@ -46,12 +46,13 @@ Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>&
 	}
 }
 
-void Mesh::draw(const Shader& shader, const std::string model_name, const glm::mat4& model_matrix)
+
+void Mesh::draw(const Shader& shader, const std::string model_name, const glm::mat4& model_matrix, const bool& is_dynamic)
 {
 	//if (!setup_success)
 	//	return;
 
-	RenderSystem::renderer()->draw(VAO, indices.size(), shader, model_matrix, &textures, &texture_types, model_name, &setup_success);
+	RenderSystem::renderer()->draw(VAO, indices.size(), shader, model_matrix, &textures, &texture_types, model_name, is_dynamic, &setup_success);
 
 }
 

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <filesystem>
 
 // Custom
 #include <shader.h>
@@ -68,11 +69,12 @@ GLFWwindow* GLFWWindowManager(const int& major_version, const int& minor_version
 
 int main()
 {
+	std::cout << "Origin : " << std::filesystem::current_path() << "\n";
 	// Set logging modules log level
 	LOGGER->setLogLevel(xre::LOG_LEVEL::INFO, xre::LOG_LEVEL_FILTER_TYPE::GREATER_OR_EQUAL);
 
 	// GLFW initiallization and  Window Creation
-	GLFWwindow* window = GLFWWindowManager(3, 3, GLFW_OPENGL_CORE_PROFILE);
+	GLFWwindow* window = GLFWWindowManager(4, 4, GLFW_OPENGL_CORE_PROFILE);
 	if (window == nullptr)
 	{
 		return -1;
@@ -85,7 +87,9 @@ int main()
 		return -1;
 	}
 
-	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, glm::vec4(0.8f, 0.8f, 0.8f, 1.0f), 0.01f, 100.0f, 3048, 3048);
+	bool deferred = true; // Make this false, for forward shading.
+
+	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, deferred, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f, 100.0f, 1024 * 2, 2 * 1024);
 	renderer->SwitchPfx(false);
 
 	// Camera creation
@@ -93,95 +97,112 @@ int main()
 	xre::CameraMatrix cm;
 
 	// Lights setup
-	xre::DirectionalLight directional_light = xre::DirectionalLight(glm::vec3(0.0f, 50.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 2.0f, "directionalLight");
+	//xre::DirectionalLight directional_light = xre::DirectionalLight(glm::vec3(0.0f, 20.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 10.0f, "directionalLight");
 
-	xre::PointLight point_light_0 = xre::PointLight(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1, 0.022f, 0.0019f, 2.0f, "pointLights[0]");
-
-	glm::vec3 model_placements[] = {
-		glm::vec3(0.0f, 0.0f, 0.0f),
-		glm::vec3(1.0f, -2.0f, -2.0f),
-		glm::vec3(2.5f, 6.0f, -4.0f),
-		glm::vec3(3.0f, 1.0f, 1.0f),
-		glm::vec3(-0.5f, 0.0f, 2.0f)
-	};
+	xre::PointLight point_light_0 = xre::PointLight(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1, 0.7f, 1.8f, 10.0f, "pointLights[0]");
+	xre::PointLight point_light_1 = xre::PointLight(glm::vec3(8.0f, 2.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[1]");
+	xre::PointLight point_light_2 = xre::PointLight(glm::vec3(-8.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[2]");
 
 	// Imported object render test
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-	xre::Model ferrari("D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Models/41-formula-1/formula 1/Formula 1 mesh.fbx", "ferrari", aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_MakeLeftHanded | aiProcess_CalcTangentSpace | aiProcess_GenNormals);
-	xre::Shader ferrari_shader("D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Shaders/vertex_shader.vert", "D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Shaders/fragment_shader.frag");
+	xre::Model ferrari("./Source/Resources/Models/formula1/formula1/Formula_1_mesh.fbx", "ferrari",
+		aiProcess_Triangulate
+		| aiProcess_CalcTangentSpace
+		| aiProcess_FlipUVs
+		| aiProcess_OptimizeMeshes
+		| aiProcess_OptimizeGraph);
+	xre::Shader* ferrari_shader = NULL;
+	ferrari.dynamic = false;
 	ferrari.translate(glm::vec3(0.0f));
 	ferrari.scale(glm::vec3(0.01f));
 
-	xre::Model backpack("D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Models/backpack/backpack.obj", "backpack", aiProcess_Triangulate | aiProcess_CalcTangentSpace);
-	xre::Shader backpack_shader("D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Shaders/vertex_shader.vert", "D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Shaders/fragment_shader.frag");
+	xre::Model backpack("./Source/Resources/Models/backpack/backpack.obj", "backpack",
+		aiProcess_Triangulate
+		| aiProcess_CalcTangentSpace
+		| aiProcess_OptimizeMeshes
+		| aiProcess_OptimizeGraph);
+	xre::Shader* backpack_shader = NULL;
+	backpack.dynamic = true;
 	backpack.translate(glm::vec3(-1.0f, 1.0f, 0.0f));
 	backpack.scale(glm::vec3(0.1f));
 
-	xre::Model sponza("D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Models/crytek-sponza-huge-vray-obj/crytek-sponza-huge-vray.obj", "sponza", aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_DropNormals | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_FixInfacingNormals);
-	xre::Shader sponza_shader("D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Shaders/vertex_shader.vert", "D:/Work/Xperimental Rendering Engine/XRE/Source/Resources/Shaders/fragment_shader.frag");
+	xre::Model sponza("./Source/Resources/Models/sponza/sponza.obj", "sponza",
+		aiProcess_Triangulate
+		| aiProcess_CalcTangentSpace
+		| aiProcess_OptimizeMeshes
+		| aiProcess_OptimizeGraph
+		| aiProcess_ForceGenNormals
+		| aiProcess_FlipUVs);
+	xre::Shader* sponza_shader = NULL;
 	sponza.translate(glm::vec3(0.0, 0.0, 0.0));
 	sponza.scale(glm::vec3(0.01f));
+	sponza.dynamic = false;
 
-	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+	if (!deferred)
+	{
+		ferrari_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
+			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
+		backpack_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
+			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
+		sponza_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
+			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
+	}
 
 	// Additional data
 	std::chrono::duration<float> delta_time;
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-	bool first_refresh = false;
+	// Push objects to draw queue
+	// ----------------------------------------
+	ferrari.draw(*ferrari_shader, "ferrari");
+	backpack.draw(*backpack_shader, "backpack");
+	sponza.draw(*sponza_shader, "sponza");
+	// ----------------------------------------
 
 	while (!glfwWindowShouldClose(window))
 	{
+		LOGGER->log(xre::INFO, "XRE", "Now rendering...");
+
 		auto start = std::chrono::high_resolution_clock::now();
-
-		if (!first_refresh)
-		{                                                                                   
-			cm = camera.UpdateCamera(2.0f * delta_time.count(), 20.0f * delta_time.count());
-			first_refresh = true;
-		}
+		//directional_light.m_position = glm::vec3(0.0f, 50.0f, 0.0f) + glm::vec3(30 * glm::cos(glm::radians(glfwGetTime() * 5.0)), 0.0, 30 * glm::sin(glm::radians(glfwGetTime() * 5.0)));
 		cm = camera.UpdateCamera(2.0f * delta_time.count(), 20.0f * delta_time.count());
-
 		renderer->setCameraMatrices(&cm.view, &cm.projection, &camera.position);
-		// Ferrai draw call
-		ferrari_shader.setMat4("view", cm.view);
-		ferrari_shader.setMat4("projection", cm.projection);
-		ferrari_shader.setMat4("model", ferrari.model_matrix);
-		ferrari_shader.setVec3("camera_position_vertex", camera.position);
-		//ferrari_shader.setVec3("camera_pos", camera.position);
-		ferrari_shader.setFloat("shininess", 128);
-		ferrari.draw(ferrari_shader, "ferrari");
+		backpack.rotate(glm::cos(glm::radians(glfwGetTime())) * 0.001f, glm::vec3(1.0f));
 
-		// Backpack draw call
-		backpack.rotate(glm::cos(glm::radians(glfwGetTime())) * 0.01f, glm::vec3(1.0f));
-		backpack_shader.setMat4("view", cm.view);
-		backpack_shader.setMat4("projection", cm.projection);
-		backpack_shader.setMat4("model", backpack.model_matrix);
-		backpack_shader.setVec3("camera_position_vertex", camera.position);
-		//backpack_shader.setVec3("camera_pos", camera.position);
-		backpack_shader.setFloat("shininess", 32);
-		backpack.draw(backpack_shader, "backpack");
+		if (!deferred)
+		{
+			ferrari_shader->use();
+			ferrari_shader->setMat4("view", cm.view);
+			ferrari_shader->setMat4("projection", cm.projection);
+			ferrari_shader->setMat4("model", ferrari.model_matrix);
+			ferrari_shader->setVec3("camera_position_vertex", camera.position);
+			ferrari_shader->setFloat("shininess", 128);
 
-		// Sponza draw call
-		sponza_shader.setMat4("view", cm.view);
-		sponza_shader.setMat4("projection", cm.projection);
-		sponza_shader.setMat4("model", sponza.model_matrix);
-		sponza_shader.setVec3("camera_position_vertex", camera.position);
-		//sponza_shader.setVec3("camera_pos", camera.position);
-		sponza_shader.setFloat("shininess", 128);
-		sponza.draw(sponza_shader, "sponza");
+			backpack_shader->use();
+			backpack_shader->setMat4("view", cm.view);
+			backpack_shader->setMat4("projection", cm.projection);
+			backpack_shader->setMat4("model", backpack.model_matrix);
+			backpack_shader->setVec3("camera_position_vertex", camera.position);
+			backpack_shader->setFloat("shininess", 32);
+
+			sponza_shader->use();
+			sponza_shader->setMat4("view", cm.view);
+			sponza_shader->setMat4("projection", cm.projection);
+			sponza_shader->setMat4("model", sponza.model_matrix);
+			sponza_shader->setVec3("camera_position_vertex", camera.position);
+			sponza_shader->setFloat("shininess", 128);
+		}
 
 		// Draw to screen
 		renderer->drawToScreen();
-
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
-		glfwPollEvents();
 
 		delta_time = std::chrono::high_resolution_clock::now() - start;
+		//std::cout << (int)(1 / delta_time.count()) << "\n";
 
-		//std::cout << 1 / delta_time.count() << "\n";
+		glfwPollEvents();
 	}
 
 	glfwTerminate();
