@@ -16,6 +16,17 @@
 
 namespace xre
 {
+	enum RENDER_PIPELINE
+	{
+		DEFERRED,
+		FORWARD
+	};
+	enum LIGHTING_MODE
+	{
+		PBR,
+		BLINNPHONG
+	};
+
 	class RenderSystem
 	{
 	private:
@@ -42,7 +53,7 @@ namespace xre
 			glm::mat4 point_light_space_matrix_5;
 		};
 
-		RenderSystem(unsigned int screen_width, unsigned int screen_height, bool is_deferred, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p);
+		RenderSystem(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
 
 		void createForwardFramebuffers();
 		void createQuad();
@@ -51,18 +62,21 @@ namespace xre
 		void clearDeferredBuffers();
 		void createDirectionalLightMatrix(glm::vec3 light_position, glm::vec3 light_front);
 		void createPointLightMatrices(glm::vec3 light_position, unsigned int light_index);
+		void createBlurringFramebuffers();
 		void clearForwardFramebuffer();
 		void clearDefaultFramebuffer();
 		void clearDirectionalShadowMapFramebuffer();
+		void clearDirectionalShadowBlurringFramebuffers();
 		void clearPointShadowFramebufferStatic();
 		void clearPointShadowFramebufferDynamic();
-		void clearPingPongFramebuffers();
+		void clearPrimaryBlurringFramebuffers();
 		void directionalShadowPass();
 		void pointShadowPass();
 		void ForwardColorPass();
 		void deferredFillPass();
 		void deferredColorPass();
-		void blurPass(unsigned int input_texture);
+		void blurPass(unsigned int main_color_texture, unsigned int ssao_texture, unsigned int amount);
+		void directionalSoftShadowPass();
 		void SSAOPass();
 		void createSSAOData();
 		void createSSAOKernel(unsigned int num_samples);
@@ -70,6 +84,9 @@ namespace xre
 		float lerp(float a, float b, float t);
 
 		static RenderSystem* instance;
+
+		RENDER_PIPELINE rendering_pipeline;
+		LIGHTING_MODE lighting_model;
 
 		// just making shit more complicated than it has to be.
 		unsigned int framebuffer_width, framebuffer_height;
@@ -81,9 +98,7 @@ namespace xre
 			ForwardFramebuffer_secondary_texture,
 			ForwardFramebuffer_Color_Attachments[2],
 			ForwardFramebuffer_depth_texture,
-			ForwardFramebufferRenderbuffer,
-			PingPongFramebuffers[2],
-			PingPongFramebuffer_textures[2];
+			ForwardFramebufferRenderbuffer;
 
 		// Deferred Shading
 		unsigned int DeferredDataFrameBuffer,
@@ -96,13 +111,13 @@ namespace xre
 
 		unsigned int DeferredGbuffer_position,
 			DeferredGbuffer_color,
-			DeferredGbuffer_specular,
 			DeferredGbuffer_model_normal,
 			DeferredGbuffer_tangent,
 			DeferredGbuffer_texture_normal,
-			DeferredGbuffer_texture_normal_view;
+			DeferredGbuffer_texture_normal_view,
+			DeferredGbuffer_texture_mor;
 
-		unsigned int DeferredFrameBuffer_primary_color_attachments[7];
+		unsigned int DeferredFrameBuffer_primary_color_attachments[6];
 		unsigned int DeferredFinal_attachments[2];
 
 		// SSAO
@@ -112,6 +127,15 @@ namespace xre
 		std::vector<glm::vec3> ssao_kernel;
 		std::vector<glm::vec3> ssao_noise;
 
+		// PrimaryBlurring Buffers
+		unsigned int PrimaryBlurringFramebuffers[2],
+			PrimaryBlurringFramebuffer_bloom_textures[2],
+			PrimaryBlurringFramebuffer_ssao_textures[2],
+			PrimaryBlurringFramebuffers_attachments[2];
+
+		// DirectionalShadowBlur Buffers
+		unsigned int DirectionalShadowBlurringFramebuffers[2],
+			DirectionalShadowBlurring_soft_shadow_textures[2];
 
 		unsigned int random_rotation_texture;
 
@@ -130,6 +154,9 @@ namespace xre
 		unsigned int point_shadow_framebuffer_static[5], point_shadow_framebuffer_dynamic[5],
 			point_shadow_framebuffer_depth_texture_cubemap_static[5], point_shadow_framebuffer_depth_texture_cubemap_dynamic[5],
 			point_shadow_framebuffer_depth_color_texture_static[5], point_shadow_framebuffer_depth_color_texture_dynamic[5];
+		
+		// Dual Paraboloid Shadow Mapping for point lights.
+		unsigned int point_para_depth_color_static[5], point_para_depth_color_dynamic[5];
 
 		unsigned int point_shadow_depth_attachment_static[5], point_shadow_depth_attachment_dynamic[5];
 
@@ -151,7 +178,8 @@ namespace xre
 		Shader* quadShader;
 		Shader* depthShader_point;
 		Shader* depthShader_directional;
-		Shader* blurShader;
+		Shader* bloomSSAO_blur_Shader;
+		Shader* directional_shadow_blur_Shader;
 		unsigned int screen_texture;
 
 		bool deferred;
@@ -169,7 +197,7 @@ namespace xre
 
 	public:
 		static RenderSystem* renderer();
-		static RenderSystem* renderer(unsigned int screen_width, unsigned int screen_height, bool  is_deferred, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p);
+		static RenderSystem* renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
 
 		RenderSystem(RenderSystem& other) = delete;
 

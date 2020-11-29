@@ -4,24 +4,20 @@ uniform float farPlane;
 uniform vec3 lightPos;
 
 in vec4 FragPos;
-
-out float depth;
+out vec4 depth;
 
 void main()
 {	
+	float d = length(FragPos.xyz - lightPos) / farPlane;
 
-	depth = length(FragPos.xyz - lightPos)/farPlane;
-/*
-	float depth = length(lightPos - FragPos.xyz) / farPlane;
-	depth = depth * 0.5 + 0.5;
+	float m1 = d;
+	float m2 = d * d;
 
-	float m1 = depth;
-	float m2 = depth * depth;
-
-	float dx = dFdx(depth);
-	float dy = dFdx(depth);
+	float dx = dFdx(depth.x);
+	float dy = dFdx(depth.y);
 
 	m2 += 0.25 * (dx * dx + dy * dy);
-*/
-	//gl_FragColor = vec4(depth, 0.0, 0.0, 0.0);
+
+	depth.r = m1;
+	depth.g = m2;
 }

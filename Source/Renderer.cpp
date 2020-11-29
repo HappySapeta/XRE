@@ -36,27 +36,20 @@ RenderSystem* RenderSystem::renderer()
 }
 
 // SHOULD BE CALLED ONLY ONCE, BEFORE ENTERING RENDER LOOP.
-RenderSystem* RenderSystem::renderer(unsigned int screen_width, unsigned int screen_height, bool  is_deferred, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p)
+RenderSystem* RenderSystem::renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode)
 {
 	if (instance == NULL)
 	{
-		instance = new RenderSystem(screen_width, screen_height, is_deferred, background_color, lights_near_plane_p, lights_far_plane_p, shadow_map_width_p, shadow_map_height_p);
+		instance = new RenderSystem(screen_width, screen_height, background_color, lights_near_plane_p, lights_far_plane_p, shadow_map_width_p, shadow_map_height_p, render_pipeline, light_mode);
 	}
 	return instance;
 }
 
-RenderSystem::RenderSystem(unsigned int screen_width, unsigned int screen_height, bool is_deferred, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p)
+RenderSystem::RenderSystem(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode)
 	:framebuffer_width(screen_width), framebuffer_height(screen_height), bg_color(background_color), light_near_plane(lights_near_plane_p), light_far_plane(lights_far_plane_p), shadow_map_width(shadow_map_height_p), shadow_map_height(shadow_map_height_p)
 {
-	//GLint t;
-	//std::stringstream ss;
-	//glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &t);
-	//ss << t;
-
-	//LOGGER->log(INFO, "MAX TEXTURE UNITS", ss.str());
-
-	deferred = is_deferred;
-
+	rendering_pipeline = render_pipeline;
+	lighting_model = light_mode;
 	bg_color = background_color;
 
 	quadShader = new Shader(
@@ -64,18 +57,32 @@ RenderSystem::RenderSystem(unsigned int screen_width, unsigned int screen_height
 		"./Source/Resources/Shaders/Quad/quad_fragment_shader.frag");
 	createQuad();
 
-	if (deferred)
+	if (rendering_pipeline == RENDER_PIPELINE::DEFERRED)
 	{
 		createDeferredBuffers();
 		createShadowMapFramebuffers();
 
-		deferredFillShader = new Shader(
-			"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_vertex_shader.vert",
-			"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_fragment_shader.frag");
 
-		deferredColorShader = new Shader(
-			"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_vertex_shader.vert",
-			"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_fragment_shader.frag");
+		if (lighting_model == LIGHTING_MODE::BLINNPHONG)
+		{
+			deferredFillShader = new Shader(
+				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_vertex_shader.vert",
+				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_fragment_shader.frag");
+
+			deferredColorShader = new Shader(
+				"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_vertex_shader.vert",
+				"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_fragment_shader.frag");
+		}
+		else
+		{
+			deferredFillShader = new Shader(
+				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_vertex_shader.vert",
+				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_pbr_fragment_shader.frag");
+
+			deferredColorShader = new Shader(
+				"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_vertex_shader.vert",
+				"./Source/Resources/Shaders/PBR/deferred_pbr_color_fragment_shader.frag");
+		}
 	}
 	else
 	{
@@ -100,21 +107,27 @@ RenderSystem::RenderSystem(unsigned int screen_width, unsigned int screen_height
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_directional_fragment_shader.frag",
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_geometry_shader.geom");
 
-	blurShader = new Shader(
+	bloomSSAO_blur_Shader = new Shader(
 		"./Source/Resources/Shaders/Quad/quad_vertex_shader.vert",
-		"./Source/Resources/Shaders/Blur/gaussian_blur_shader.frag"
+		"./Source/Resources/Shaders/Blur/bloom_ssao_blur_shader.frag"
+	);
+
+	directional_shadow_blur_Shader = new Shader(
+		"./Source/Resources/Shaders/Quad/quad_vertex_shader.vert",
+		"./Source/Resources/Shaders/Blur/directional_soft_shadow_shadow.frag"
 	);
 
 	SSAOShader = new Shader("./Source/Resources/Shaders/SSAO/ssao_vertex_shader.vert", "./Source/Resources/Shaders/SSAO/ssao_fragment_shader.frag");
 
 	createSSAOData();
+	createBlurringFramebuffers();
 
 	directional_light = NULL;
 }
 
 void RenderSystem::drawToScreen()
 {
-	if (deferred) // If not deferred
+	if (rendering_pipeline == RENDER_PIPELINE::DEFERRED)
 	{
 		if (point_lights.size() > 0)
 		{
@@ -131,17 +144,22 @@ void RenderSystem::drawToScreen()
 		clearDeferredBuffers();
 		deferredFillPass();
 		SSAOPass();
+		deferredColorShader->use();
+		deferredColorShader->setBool("use_ssao", true);
 		deferredColorPass();
 
-		clearPingPongFramebuffers();
-		blurPass(DeferredFinal_secondary_texture); // blooooom....
+		clearPrimaryBlurringFramebuffers();
+		blurPass(DeferredFinal_secondary_texture, SSAOFramebuffer_color, 5); // blooooom....
 
-		clearDefaultFramebuffer();
-
-		glDisable(GL_DEPTH_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		directionalSoftShadowPass();
 
 		glViewport(0, 0, framebuffer_width, framebuffer_height);
+
+		clearDefaultFramebuffer();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glBindVertexArray(quadVAO);
+		glDisable(GL_DEPTH_TEST);
+
 		quadShader->use();
 
 		glActiveTexture(GL_TEXTURE0);
@@ -149,10 +167,9 @@ void RenderSystem::drawToScreen()
 		glBindTexture(GL_TEXTURE_2D, DeferredFinal_primary_texture);
 
 		glActiveTexture(GL_TEXTURE1);
-		quadShader->setInt("blurTexture", 1);
-		glBindTexture(GL_TEXTURE_2D, PingPongFramebuffer_textures[0]);
+		quadShader->setInt("bloomTexture", 1);
+		glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_bloom_textures[0]);
 
-		glBindVertexArray(quadVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		glBindVertexArray(0);
 	}
@@ -173,8 +190,8 @@ void RenderSystem::drawToScreen()
 		clearForwardFramebuffer();
 		ForwardColorPass();
 
-		clearPingPongFramebuffers();
-		blurPass(ForwardFramebuffer_secondary_texture); // blooooom....
+		clearPrimaryBlurringFramebuffers();
+		blurPass(ForwardFramebuffer_secondary_texture, ForwardFramebuffer_secondary_texture, 5); // blooooom....
 
 		glViewport(0, 0, framebuffer_width, framebuffer_height);
 
@@ -190,8 +207,8 @@ void RenderSystem::drawToScreen()
 		glBindTexture(GL_TEXTURE_2D, ForwardFramebuffer_primary_texture);
 
 		glActiveTexture(GL_TEXTURE1);
-		quadShader->setInt("blurTexture", 1);
-		glBindTexture(GL_TEXTURE_2D, PingPongFramebuffer_textures[0]);
+		quadShader->setInt("bloomTexture", 1);
+		glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_bloom_textures[0]);
 
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		glBindVertexArray(0);
@@ -218,18 +235,20 @@ void RenderSystem::draw(unsigned int vertex_array_object, unsigned int indices_s
 
 void RenderSystem::createShadowMapFramebuffers()
 {
-	// directional ----------------------------------------------------------------------------------------------------------------------------------------------
+#pragma region Directional Shadow Map
 	glGenFramebuffers(1, &directional_shadow_framebuffer);
 
 	glGenTextures(1, &directional_shadow_framebuffer_depth_texture);
 	glBindTexture(GL_TEXTURE_2D, directional_shadow_framebuffer_depth_texture);
+	glGenerateMipmap(GL_TEXTURE_2D);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R16F, shadow_map_width, shadow_map_height, 0, GL_RED, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, shadow_map_width * 2, 2 * shadow_map_height, 0, GL_RG, GL_FLOAT, NULL);
 
 	float border_color[] = { 0.0f,0.0f,0.0f,1.0f };
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color);
@@ -240,9 +259,9 @@ void RenderSystem::createShadowMapFramebuffers()
 	glGenRenderbuffers(1, &directional_shadow_framebuffer_renderbuffer);
 	glBindRenderbuffer(GL_RENDERBUFFER, directional_shadow_framebuffer_renderbuffer);
 
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, shadow_map_width, shadow_map_height);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, shadow_map_width * 2, 2 * shadow_map_height);
 
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, directional_shadow_framebuffer_renderbuffer);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, directional_shadow_framebuffer_renderbuffer);
 
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -250,8 +269,10 @@ void RenderSystem::createShadowMapFramebuffers()
 
 	glBindRenderbuffer(GL_RENDERBUFFER, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	// ---------------------------------------------------------------------------------------------------------------------------------------------------------------
-	// point - Static ----------------------------------------------------------------------------------------------------------------------------------------------
+
+#pragma endregion
+
+#pragma region Point Shadow Map Static
 
 	glGenFramebuffers(5, &point_shadow_framebuffer_static[0]);
 	glGenTextures(5, &point_shadow_framebuffer_depth_texture_cubemap_static[0]);
@@ -262,8 +283,9 @@ void RenderSystem::createShadowMapFramebuffers()
 		glBindTexture(GL_TEXTURE_CUBE_MAP, point_shadow_framebuffer_depth_color_texture_static[i]);
 		for (unsigned int j = 0; j < 6; j++)
 		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_R16F, shadow_map_width, shadow_map_height, 0, GL_RED, GL_FLOAT, NULL);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_RG16F, shadow_map_width, shadow_map_height, 0, GL_RG, GL_FLOAT, NULL);
 		}
+
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -293,9 +315,9 @@ void RenderSystem::createShadowMapFramebuffers()
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		LOGGER->log(ERROR, "Renderer :  createFrameBuffers ", "Point Shadow Static Framebuffer is incomplete!");
 
-	// ---------------------------------------------------------------------------------------------------------------------------------------------------------------
-	// point - dynamic ----------------------------------------------------------------------------------------------------------------------------------------------
+#pragma endregion
 
+#pragma region Point Shadow Map Dynamic
 	glGenFramebuffers(5, &point_shadow_framebuffer_dynamic[0]);
 	glGenTextures(5, &point_shadow_framebuffer_depth_texture_cubemap_dynamic[0]);
 	glGenTextures(5, &point_shadow_framebuffer_depth_color_texture_dynamic[0]);
@@ -303,10 +325,14 @@ void RenderSystem::createShadowMapFramebuffers()
 	for (unsigned int i = 0; i < 5; i++)
 	{
 		glBindTexture(GL_TEXTURE_CUBE_MAP, point_shadow_framebuffer_depth_color_texture_dynamic[i]);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_BASE_LEVEL, 0);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_LEVEL, 1);
+
 		for (unsigned int j = 0; j < 6; j++)
 		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_R16F, shadow_map_width, shadow_map_height, 0, GL_RED, GL_FLOAT, NULL);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_RG, shadow_map_width, shadow_map_height, 0, GL_RG, GL_FLOAT, NULL);
 		}
+
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -328,6 +354,7 @@ void RenderSystem::createShadowMapFramebuffers()
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
+
 		glBindFramebuffer(GL_FRAMEBUFFER, point_shadow_framebuffer_dynamic[i]);
 		glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, point_shadow_framebuffer_depth_texture_cubemap_dynamic[i], 0);
 
@@ -335,8 +362,7 @@ void RenderSystem::createShadowMapFramebuffers()
 	}
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		LOGGER->log(ERROR, "Renderer :  createFrameBuffers ", "Point Shadow dynamic Framebuffer is incomplete!");
-
-	// ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+#pragma endregion
 }
 
 void RenderSystem::createDeferredBuffers()
@@ -362,7 +388,7 @@ void RenderSystem::createDeferredBuffers()
 	glGenTextures(1, &DeferredFinal_secondary_texture);
 	glBindTexture(GL_TEXTURE_2D, DeferredFinal_secondary_texture);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -376,7 +402,6 @@ void RenderSystem::createDeferredBuffers()
 	DeferredFinal_attachments[0] = GL_COLOR_ATTACHMENT0;
 	DeferredFinal_attachments[1] = GL_COLOR_ATTACHMENT1;
 
-	// ----------------------------------
 	// G-Buffer
 	glGenFramebuffers(1, &DeferredDataFrameBuffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, DeferredDataFrameBuffer);
@@ -385,26 +410,14 @@ void RenderSystem::createDeferredBuffers()
 	glGenTextures(1, &DeferredGbuffer_color);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_color);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGBA, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, framebuffer_width, framebuffer_height, 0, GL_RGBA, GL_FLOAT, NULL);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, DeferredGbuffer_color, 0);
-
-	// Specular Buffer
-	glGenTextures(1, &DeferredGbuffer_specular);
-	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_specular);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, framebuffer_width, framebuffer_height, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, DeferredGbuffer_specular, 0);
-
+	// ----------------------------------
 
 	// Model Normal Buffer
 	glGenTextures(1, &DeferredGbuffer_model_normal);
@@ -412,12 +425,14 @@ void RenderSystem::createDeferredBuffers()
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, DeferredGbuffer_model_normal, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, DeferredGbuffer_model_normal, 0);
+	// ----------------------------------
 
+	/*
 	// Model Tangent Buffer
 	glGenTextures(1, &DeferredGbuffer_tangent);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_tangent);
@@ -428,7 +443,9 @@ void RenderSystem::createDeferredBuffers()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, DeferredGbuffer_tangent, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, DeferredGbuffer_tangent, 0);
+	// ----------------------------------
+	*/
 
 	// Texture Normal Buffer
 	glGenTextures(1, &DeferredGbuffer_texture_normal);
@@ -436,41 +453,57 @@ void RenderSystem::createDeferredBuffers()
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, DeferredGbuffer_texture_normal, 0);
-
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, DeferredGbuffer_texture_normal, 0);
+	// ----------------------------------
 
 	// Position Buffer
 	glGenTextures(1, &DeferredGbuffer_position);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_position);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT5, GL_TEXTURE_2D, DeferredGbuffer_position, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, DeferredGbuffer_position, 0);
+	// ----------------------------------
 
 	// View Normal Buffer
-
 	glGenTextures(1, &DeferredGbuffer_texture_normal_view);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_texture_normal_view);
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT6, GL_TEXTURE_2D, DeferredGbuffer_texture_normal_view, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, DeferredGbuffer_texture_normal_view, 0);
+	// ----------------------------------
+
+	// MOR Buffer
+	glGenTextures(1, &DeferredGbuffer_texture_mor);
+	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_texture_mor);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT5, GL_TEXTURE_2D, DeferredGbuffer_texture_mor, 0);
+	// ----------------------------------
 
 	// ---------------------------------------------------------------------------------------------------------------------
 
@@ -486,7 +519,7 @@ void RenderSystem::createDeferredBuffers()
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		LOGGER->log(ERROR, "Renderer : GBuffer", "GBuffer is incomplete!");
 
-	for (unsigned int i = 0; i < 7; i++)
+	for (unsigned int i = 0; i < 6; i++)
 	{
 		DeferredFrameBuffer_primary_color_attachments[i] = GL_COLOR_ATTACHMENT0 + i;
 	}
@@ -497,8 +530,8 @@ void RenderSystem::createDeferredBuffers()
 
 void RenderSystem::clearDeferredBuffers()
 {
-	glClearColor(bg_color.x, bg_color.y, bg_color.z, 1.0);
 	glBindFramebuffer(GL_FRAMEBUFFER, DeferredDataFrameBuffer);
+	glClearColor(bg_color.x, bg_color.y, bg_color.z, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindFramebuffer(GL_FRAMEBUFFER, DeferredFinalBuffer);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -508,7 +541,7 @@ void RenderSystem::clearDeferredBuffers()
 void RenderSystem::deferredFillPass()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, DeferredDataFrameBuffer);
-	glDrawBuffers(7, &DeferredFrameBuffer_primary_color_attachments[0]);
+	glDrawBuffers(6, &DeferredFrameBuffer_primary_color_attachments[0]);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	glViewport(0, 0, framebuffer_width, framebuffer_height);
@@ -554,35 +587,29 @@ void RenderSystem::deferredColorPass()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
-	deferredColorShader->use();
-
 	glActiveTexture(GL_TEXTURE0);
 	deferredColorShader->setInt("diffuse_texture", 0);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_color);
 
 	glActiveTexture(GL_TEXTURE1);
-	deferredColorShader->setInt("specular_texture", 1);
-	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_specular);
-
-	glActiveTexture(GL_TEXTURE2);
-	deferredColorShader->setInt("model_normal_texture", 2);
+	deferredColorShader->setInt("model_normal_texture", 1);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_model_normal);
 
-	glActiveTexture(GL_TEXTURE3);
-	deferredColorShader->setInt("tangent_texture", 3);
-	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_tangent);
-
-	glActiveTexture(GL_TEXTURE4);
-	deferredColorShader->setInt("texture_normal_texture", 4);
+	glActiveTexture(GL_TEXTURE2);
+	deferredColorShader->setInt("texture_normal_texture", 2);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_texture_normal);
 
-	glActiveTexture(GL_TEXTURE5);
-	deferredColorShader->setInt("position_texture", 5);
+	glActiveTexture(GL_TEXTURE3);
+	deferredColorShader->setInt("position_texture", 3);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_position);
 
-	glActiveTexture(GL_TEXTURE6);
-	deferredColorShader->setInt("ssao_texture", 6);
-	glBindTexture(GL_TEXTURE_2D, SSAOFramebuffer_color);
+	glActiveTexture(GL_TEXTURE4);
+	deferredColorShader->setInt("ssao_texture", 4);
+	glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_ssao_textures[0]);
+
+	glActiveTexture(GL_TEXTURE5);
+	deferredColorShader->setInt("mor_texture", 5);
+	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_texture_mor);
 
 	deferredColorShader->setVec3("camera_pos", *camera_position);
 	deferredColorShader->setFloat("near", light_near_plane);
@@ -592,9 +619,9 @@ void RenderSystem::deferredColorPass()
 
 	if (directional_light != NULL)
 	{
-		glActiveTexture(GL_TEXTURE7);
-		deferredColorShader->setInt("shadow_depth_map_directional", 7);
-		glBindTexture(GL_TEXTURE_2D, directional_shadow_framebuffer_depth_texture);
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, DirectionalShadowBlurring_soft_shadow_textures[0]);
+		deferredColorShader->setInt("shadow_depth_map_directional", 6);
 
 		deferredColorShader->setMat4("directional_light_space_matrix", directional_light_space_matrix);
 	}
@@ -605,9 +632,9 @@ void RenderSystem::deferredColorPass()
 		ss.str("");
 		ss << '[' << i << ']';
 
-		glActiveTexture(GL_TEXTURE8 + i);
+		glActiveTexture(GL_TEXTURE7 + i);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, point_shadow_framebuffer_depth_color_texture_static[i]);
-		deferredColorShader->setInt("point_shadow_framebuffer_depth_color_texture_static" + ss.str(), 8 + i);
+		deferredColorShader->setInt("point_shadow_framebuffer_depth_color_texture_static" + ss.str(), 7 + i);
 	}
 
 	for (unsigned int i = 0; i < point_lights.size(); i++)
@@ -615,9 +642,9 @@ void RenderSystem::deferredColorPass()
 		ss.str("");
 		ss << '[' << i << ']';
 
-		glActiveTexture(GL_TEXTURE13 + i);
+		glActiveTexture(GL_TEXTURE12 + i);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, point_shadow_framebuffer_depth_color_texture_dynamic[i]);
-		deferredColorShader->setInt("point_shadow_framebuffer_depth_color_texture_dynamic" + ss.str(), 13 + i);
+		deferredColorShader->setInt("point_shadow_framebuffer_depth_color_texture_dynamic" + ss.str(), 12 + i);
 	}
 
 
@@ -639,14 +666,14 @@ void RenderSystem::directionalShadowPass()
 {
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
+	glCullFace(GL_BACK);
 
 	depthShader_directional->use();
 	depthShader_directional->setInt("is_point", 0);
 
 	if (directional_light != NULL)
 	{
-		glViewport(0, 0, shadow_map_width, shadow_map_height);
+		glViewport(0, 0, shadow_map_width * 2, 2 * shadow_map_height);
 		glBindFramebuffer(GL_FRAMEBUFFER, directional_shadow_framebuffer);
 		depthShader_directional->setInt("faces", 1);
 
@@ -655,6 +682,7 @@ void RenderSystem::directionalShadowPass()
 		depthShader_directional->setMat4("light_space_matrix_cube[0]", directional_light_space_matrix);
 		depthShader_directional->setVec3("lightPos", directional_light->m_position);
 		depthShader_directional->setFloat("farPlane", light_far_plane);
+		depthShader_directional->setMat4("directional_light_space_matrix", directional_light_space_matrix);
 
 		for (unsigned int i = 0; i < draw_queue.size(); i++)
 		{
@@ -792,28 +820,6 @@ void RenderSystem::createForwardFramebuffers()
 	glBindRenderbuffer(GL_RENDERBUFFER, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	clearForwardFramebuffer();
-
-	// Ping-Pong Framebuffers
-
-	glGenFramebuffers(2, PingPongFramebuffers);
-	glGenTextures(2, PingPongFramebuffer_textures);
-
-	for (unsigned int i = 0; i < 2; i++)
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, PingPongFramebuffers[i]);
-		glBindTexture(GL_TEXTURE_2D, PingPongFramebuffer_textures[i]);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, PingPongFramebuffer_textures[i], 0);
-	}
-
-	clearPingPongFramebuffers();
 }
 
 void RenderSystem::ForwardColorPass() // draw everything to Framebuffer. 2nd pass.
@@ -912,7 +918,6 @@ void RenderSystem::clearForwardFramebuffer()
 void RenderSystem::clearDefaultFramebuffer()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
 	glClearColor(bg_color.x, bg_color.y, bg_color.z, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
@@ -922,6 +927,16 @@ void RenderSystem::clearDirectionalShadowMapFramebuffer()
 	glBindFramebuffer(GL_FRAMEBUFFER, directional_shadow_framebuffer);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void RenderSystem::clearDirectionalShadowBlurringFramebuffers()
+{
+	for (unsigned int i = 0; i < 2; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, DirectionalShadowBlurringFramebuffers[i]);
+		glClearColor(1.0, 1.0, 1.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
 }
 
 void RenderSystem::clearPointShadowFramebufferStatic()
@@ -944,11 +959,12 @@ void RenderSystem::clearPointShadowFramebufferDynamic()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderSystem::clearPingPongFramebuffers()
+void RenderSystem::clearPrimaryBlurringFramebuffers()
 {
+	glClearColor(bg_color.r, bg_color.g, bg_color.b, 1.0);
 	for (unsigned int i = 0; i < 2; i++)
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, PingPongFramebuffers[i]);
+		glBindFramebuffer(GL_FRAMEBUFFER, PrimaryBlurringFramebuffers[i]);
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
 
@@ -957,7 +973,7 @@ void RenderSystem::clearPingPongFramebuffers()
 
 void RenderSystem::createDirectionalLightMatrix(glm::vec3 light_position, glm::vec3 light_front)
 {
-	directional_light_projection = glm::ortho(-15.0f, 15.0f, -15.0f, 15.0f, light_near_plane, light_far_plane);
+	directional_light_projection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, light_near_plane, light_far_plane);
 	directional_light_space_matrix = directional_light_projection * glm::lookAt(light_position, glm::vec3(0.0f), glm::cross(xre::WORLD_RIGHT, light_front));
 }
 
@@ -974,6 +990,79 @@ void RenderSystem::createPointLightMatrices(glm::vec3 light_position, unsigned i
 	plsmc.point_light_space_matrix_5 = point_light_projection * glm::lookAt(light_position, light_position + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f));
 
 	point_light_space_matrix_cube_array[light_index] = plsmc;
+}
+
+void RenderSystem::createBlurringFramebuffers()
+{
+	// Primary Blurring Framebuffers
+	glGenFramebuffers(2, PrimaryBlurringFramebuffers);
+	glGenTextures(2, &PrimaryBlurringFramebuffer_bloom_textures[0]);
+	glGenTextures(2, &PrimaryBlurringFramebuffer_ssao_textures[0]);
+
+	for (unsigned int i = 0; i < 2; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, PrimaryBlurringFramebuffers[i]);
+
+		glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_bloom_textures[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width / 2, framebuffer_height / 2, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, PrimaryBlurringFramebuffer_bloom_textures[i], 0);
+
+		glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_ssao_textures[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, framebuffer_width / 2, framebuffer_height / 2, 0, GL_RG, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, PrimaryBlurringFramebuffer_ssao_textures[i], 0);
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+		{
+			LOGGER->log(INFO, "Render System : createFramebuffer", "PrimaryBlurring Framebuffer complete.");
+		}
+		else
+		{
+			LOGGER->log(ERROR, "Render System : createFramebuffer", "PrimaryBlurring Framebuffer incomplete!");
+		}
+	}
+
+
+	PrimaryBlurringFramebuffers_attachments[0] = GL_COLOR_ATTACHMENT0;
+	PrimaryBlurringFramebuffers_attachments[1] = GL_COLOR_ATTACHMENT1;
+
+	clearPrimaryBlurringFramebuffers();
+
+	// Primary Blurring Framebuffers
+	glGenFramebuffers(2, DirectionalShadowBlurringFramebuffers);
+	glGenTextures(2, &DirectionalShadowBlurring_soft_shadow_textures[0]);
+
+	for (unsigned int i = 0; i < 2; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, DirectionalShadowBlurringFramebuffers[i]);
+
+		glBindTexture(GL_TEXTURE_2D, DirectionalShadowBlurring_soft_shadow_textures[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, shadow_map_width * 2, 2 * shadow_map_height, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, DirectionalShadowBlurring_soft_shadow_textures[i], 0);
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+		{
+			LOGGER->log(INFO, "Render System : createFramebuffer", "DirectionalShadowBlurring Framebuffer complete.");
+		}
+		else
+		{
+			LOGGER->log(ERROR, "Render System : createFramebuffer", "DirectionalShadowBlurring Framebuffer incomplete!");
+		}
+	}
+
+	clearPrimaryBlurringFramebuffers();
+
 }
 
 void RenderSystem::addToRenderSystem(Light* light)
@@ -1003,25 +1092,66 @@ void RenderSystem::setCameraMatrices(const glm::mat4* view, const glm::mat4* pro
 	camera_position = position;
 }
 
-void RenderSystem::blurPass(unsigned int input_texture)
+void RenderSystem::blurPass(unsigned int main_color_texture, unsigned int ssao_texture, unsigned int amount)
 {
 	glDisable(GL_DEPTH_TEST);
 
-	unsigned int amount = 5;
-	blurShader->use();
+	bloomSSAO_blur_Shader->use();
 	first_iteration = true;
 
 	horizontal = true;
 
 	for (unsigned int i = 0; i < amount; i++)
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, PingPongFramebuffers[horizontal]);
-		blurShader->setBool("horizontal", horizontal);
+		glBindFramebuffer(GL_FRAMEBUFFER, PrimaryBlurringFramebuffers[horizontal]);
+		glDrawBuffers(2, &PrimaryBlurringFramebuffers_attachments[0]);
 
-		glViewport(0, 0, framebuffer_width, framebuffer_height);
+		bloomSSAO_blur_Shader->setBool("horizontal", horizontal);
+
+		glViewport(0, 0, framebuffer_width / 2, framebuffer_height / 2);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, first_iteration ? input_texture : PingPongFramebuffer_textures[!horizontal]);
+		bloomSSAO_blur_Shader->setInt("inputTexture_1", 0);
+		glBindTexture(GL_TEXTURE_2D, first_iteration ? main_color_texture : PrimaryBlurringFramebuffer_bloom_textures[!horizontal]);
+
+		glActiveTexture(GL_TEXTURE1);
+		bloomSSAO_blur_Shader->setInt("inputTexture_2", 1);
+		glBindTexture(GL_TEXTURE_2D, first_iteration ? ssao_texture : PrimaryBlurringFramebuffer_ssao_textures[!horizontal]);
+
+		glBindVertexArray(quadVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glBindVertexArray(0);
+
+		horizontal = !horizontal;
+
+		if (first_iteration)
+			first_iteration = false;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void RenderSystem::directionalSoftShadowPass()
+{
+	glDisable(GL_DEPTH_TEST);
+
+	unsigned int amount = 5;
+	directional_shadow_blur_Shader->use();
+	first_iteration = true;
+
+	horizontal = true;
+
+	for (unsigned int i = 0; i < amount; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, DirectionalShadowBlurringFramebuffers[horizontal]);
+
+		directional_shadow_blur_Shader->setBool("horizontal", horizontal);
+
+		glViewport(0, 0, shadow_map_width * 2, 2 * shadow_map_height);
+
+		glActiveTexture(GL_TEXTURE0);
+		directional_shadow_blur_Shader->setInt("inputTexture_1", 0);
+		glBindTexture(GL_TEXTURE_2D, first_iteration ? directional_shadow_framebuffer_depth_texture : DirectionalShadowBlurring_soft_shadow_textures[!horizontal]);
 
 		glBindVertexArray(quadVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1073,7 +1203,7 @@ void RenderSystem::SSAOPass()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, SSAOFrameBuffer);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glViewport(0, 0, framebuffer_width, framebuffer_height);
+	glViewport(0, 0, framebuffer_width / 2, framebuffer_height / 2);
 
 	SSAOShader->use();
 
@@ -1103,6 +1233,8 @@ void RenderSystem::SSAOPass()
 	glBindVertexArray(quadVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glBindVertexArray(0);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void RenderSystem::createSSAOData()
@@ -1113,7 +1245,7 @@ void RenderSystem::createSSAOData()
 	glGenTextures(1, &random_rotation_texture);
 	glBindTexture(GL_TEXTURE_2D, random_rotation_texture);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssao_noise[0]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 4, 4, 0, GL_RGB, GL_FLOAT, &ssao_noise[0]);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -1126,7 +1258,7 @@ void RenderSystem::createSSAOData()
 	glGenTextures(1, &SSAOFramebuffer_color);
 	glBindTexture(GL_TEXTURE_2D, SSAOFramebuffer_color);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, framebuffer_width, framebuffer_height, 0, GL_RED, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, framebuffer_width / 2, framebuffer_height / 2, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

@@ -1,6 +1,7 @@
 #include <model.h>
 #include <iostream>
 
+#include <assimp/pbrmaterial.h>
 #include <assimp/Importer.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -164,16 +165,24 @@ Mesh* Model::extractMeshData(aiMesh* ai_mesh)
 	aiMaterial* material = scene->mMaterials[ai_mesh->mMaterialIndex];
 
 	LOGGER->log(INFO, "LOAD TEXTURE", "Loading diffuse texture.");
-	Texture diffuse_texture = loadTextureFromPath(material, aiTextureType_DIFFUSE, "texture_diffuse");
+	Texture diffuse_texture = loadTextureFromPath(material, aiTextureType_DIFFUSE, "texture_diffuse"); // albedo *PBR
 	textures.push_back(diffuse_texture);
 
 	LOGGER->log(INFO, "LOAD TEXTURE", "Loading specular texture.");
-	Texture specular_texture = loadTextureFromPath(material, aiTextureType_SPECULAR, "texture_specular");
+	Texture specular_texture = loadTextureFromPath(material, aiTextureType_SPECULAR, "texture_specular"); // metallic *PBR
 	textures.push_back(specular_texture);
 
 	LOGGER->log(INFO, "LOAD TEXTURE", "Loading normal texture.");
-	Texture normal_texture = loadTextureFromPath(material, aiTextureType_NORMALS, "texture_normal");
+	Texture normal_texture = loadTextureFromPath(material, aiTextureType_NORMALS, "texture_normal"); // normal
 	textures.push_back(normal_texture);
+
+	LOGGER->log(INFO, "LOAD TEXTURE", "Loading roughness texture.");
+	Texture roughness_texture = loadTextureFromPath(material, aiTextureType_SHININESS, "texture_roughness"); // roughness *PBR
+	textures.push_back(roughness_texture);
+
+	LOGGER->log(INFO, "LOAD TEXTURE", "Loading occlusion texture.");
+	Texture occlusion_texture = loadTextureFromPath(material, aiTextureType_AMBIENT, "texture_occlusion"); // occlusion *PBR
+	textures.push_back(occlusion_texture);
 
 	return new Mesh(vertices, indices, textures);
 }
@@ -236,8 +245,7 @@ unsigned int Model::GetTexture(const std::string& texture_path, bool gamma)
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, 4.0);
 
 		stbi_image_free(data);
 	}		

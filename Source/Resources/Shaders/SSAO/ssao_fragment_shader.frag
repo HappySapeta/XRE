@@ -6,8 +6,6 @@ out float FragColor;
 
 in vec2 TexCoords;
 
-vec2 poissonDisk[64];
-
 uniform sampler2D position_texture;
 uniform sampler2D normal_texture;
 uniform sampler2D noise_texture;
@@ -52,5 +50,5 @@ void main()
 	}
 
 	occlusion = (occlusion / (NUM_SAMPLES));
-	FragColor = pow(1.0 - occlusion, 2.0);
+	FragColor = pow(1.0 - occlusion, 1.0);
 }

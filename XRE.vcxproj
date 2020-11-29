@@ -49,12 +49,15 @@
     <None Include="Source\Resources\Shaders\BlinnPhong\deferred_bphong_color_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\BlinnPhong\forward_bphong_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\BlinnPhong\forward_bphong_vertex_shader.vert" />
-    <None Include="Source\Resources\Shaders\Blur\gaussian_blur_shader.frag" />
+    <None Include="Source\Resources\Shaders\Blur\bloom_ssao_blur_shader.frag" />
+    <None Include="Source\Resources\Shaders\Blur\directional_soft_shadow_shadow.frag" />
     <None Include="Source\Resources\Shaders\Common\geometry_shader.geom" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_pbr_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_tspace_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_tspace_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\PBR\deferred_pbr_color_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\Quad\quad_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\Quad\quad_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\ShadowMapping\depth_map_directional_fragment_shader.frag" />

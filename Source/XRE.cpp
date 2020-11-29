@@ -3,6 +3,7 @@
 #include <string>
 #include <chrono>
 #include <filesystem>
+#include <assimp/version.h>
 
 // Custom
 #include <shader.h>
@@ -19,7 +20,7 @@
 #include <sstream>
 
 static xre::LogModule* LOGGER = xre::LogModule::getLoggerInstance();
-const unsigned int SCR_WIDTH = 1600, SCR_HEIGHT = 900;
+const unsigned int SCR_WIDTH = 1920, SCR_HEIGHT = 1080;
 void framebufferSizeCallback(GLFWwindow* window, int width, int height); // Do not define any type other than 'int' for width / height parameters. e.g. Incorrect : const unsigned int& width, Correct : int width.
 
 GLFWwindow* GLFWWindowManager(const int& major_version, const int& minor_version, const GLenum& opengl_profile)
@@ -46,6 +47,9 @@ GLFWwindow* GLFWWindowManager(const int& major_version, const int& minor_version
 	}
 
 	// GLFW Window Creation
+	int count;
+	GLFWmonitor** monitors = glfwGetMonitors(&count);
+
 	window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Xperimental Rendering Engine", NULL, NULL);
 
 	if (window == NULL)
@@ -70,6 +74,7 @@ GLFWwindow* GLFWWindowManager(const int& major_version, const int& minor_version
 int main()
 {
 	std::cout << "Origin : " << std::filesystem::current_path() << "\n";
+	std::cout << "Assimp verison : " << aiGetVersionMajor() << "." << aiGetVersionMinor() << "\n";
 	// Set logging modules log level
 	LOGGER->setLogLevel(xre::LOG_LEVEL::INFO, xre::LOG_LEVEL_FILTER_TYPE::GREATER_OR_EQUAL);
 
@@ -87,9 +92,10 @@ int main()
 		return -1;
 	}
 
-	bool deferred = true; // Make this false, for forward shading.
+	xre::RENDER_PIPELINE rendering_pipeline = xre::RENDER_PIPELINE::DEFERRED;
+	xre::LIGHTING_MODE lighting_mode = xre::LIGHTING_MODE::PBR; // PBR works with deferred only.
 
-	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, deferred, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f, 100.0f, 1024 * 2, 2 * 1024);
+	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f, 100.0f, 1024, 1024, rendering_pipeline, lighting_mode);
 	renderer->SwitchPfx(false);
 
 	// Camera creation
@@ -97,15 +103,15 @@ int main()
 	xre::CameraMatrix cm;
 
 	// Lights setup
-	//xre::DirectionalLight directional_light = xre::DirectionalLight(glm::vec3(0.0f, 20.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 10.0f, "directionalLight");
+	//xre::DirectionalLight directional_light = xre::DirectionalLight(glm::vec3(0.0f, 20.0f, 0.0f), glm::vec3(0.9f, 0.8f, 0.8f), 30.0f, "directionalLight");
 
-	xre::PointLight point_light_0 = xre::PointLight(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1, 0.7f, 1.8f, 10.0f, "pointLights[0]");
-	xre::PointLight point_light_1 = xre::PointLight(glm::vec3(8.0f, 2.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[1]");
-	xre::PointLight point_light_2 = xre::PointLight(glm::vec3(-8.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[2]");
+	xre::PointLight point_light_0 = xre::PointLight(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 1, 0.7f, 1.8f, 25.0f, "pointLights[0]");
+	xre::PointLight point_light_1 = xre::PointLight(glm::vec3(8.0f, 2.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), 1, 0.7f, 1.8f, 35.0f, "pointLights[1]");
+	xre::PointLight point_light_2 = xre::PointLight(glm::vec3(-8.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 1, 0.7f, 1.8f, 35.0f, "pointLights[2]");
 
 	// Imported object render test
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+	/*
 	xre::Model ferrari("./Source/Resources/Models/formula1/formula1/Formula_1_mesh.fbx", "ferrari",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
@@ -116,8 +122,9 @@ int main()
 	ferrari.dynamic = false;
 	ferrari.translate(glm::vec3(0.0f));
 	ferrari.scale(glm::vec3(0.01f));
+	*/
 
-	xre::Model backpack("./Source/Resources/Models/backpack/backpack.obj", "backpack",
+	xre::Model backpack("./Source/Resources/Models/backpack_PBR/backpack.obj", "backpack",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
 		| aiProcess_OptimizeMeshes
@@ -127,7 +134,7 @@ int main()
 	backpack.translate(glm::vec3(-1.0f, 1.0f, 0.0f));
 	backpack.scale(glm::vec3(0.1f));
 
-	xre::Model sponza("./Source/Resources/Models/sponza/sponza.obj", "sponza",
+	xre::Model sponza("./Source/Resources/Models/sponza_PBR/sponza.obj", "sponza",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
 		| aiProcess_OptimizeMeshes
@@ -139,10 +146,9 @@ int main()
 	sponza.scale(glm::vec3(0.01f));
 	sponza.dynamic = false;
 
-	if (!deferred)
+	if (rendering_pipeline == xre::RENDER_PIPELINE::FORWARD)
 	{
-		ferrari_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
-			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
+		//ferrari_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert", "./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
 		backpack_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
 			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
 		sponza_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
@@ -155,7 +161,7 @@ int main()
 
 	// Push objects to draw queue
 	// ----------------------------------------
-	ferrari.draw(*ferrari_shader, "ferrari");
+	//ferrari.draw(*ferrari_shader, "ferrari");
 	backpack.draw(*backpack_shader, "backpack");
 	sponza.draw(*sponza_shader, "sponza");
 	// ----------------------------------------
@@ -170,14 +176,16 @@ int main()
 		renderer->setCameraMatrices(&cm.view, &cm.projection, &camera.position);
 		backpack.rotate(glm::cos(glm::radians(glfwGetTime())) * 0.001f, glm::vec3(1.0f));
 
-		if (!deferred)
+		if (rendering_pipeline == xre::RENDER_PIPELINE::FORWARD)
 		{
+			/*
 			ferrari_shader->use();
 			ferrari_shader->setMat4("view", cm.view);
 			ferrari_shader->setMat4("projection", cm.projection);
 			ferrari_shader->setMat4("model", ferrari.model_matrix);
 			ferrari_shader->setVec3("camera_position_vertex", camera.position);
 			ferrari_shader->setFloat("shininess", 128);
+			*/
 
 			backpack_shader->use();
 			backpack_shader->setMat4("view", cm.view);

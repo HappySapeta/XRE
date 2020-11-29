@@ -77,7 +77,6 @@ uniform sampler2D diffuse_texture;
 uniform sampler2D specular_texture;
 uniform sampler2D position_texture;
 uniform sampler2D model_normal_texture;
-uniform sampler2D tangent_texture;
 uniform sampler2D texture_normal_texture;
 uniform sampler2D ssao_texture;
 
@@ -93,36 +92,53 @@ float fabs(float v)
 	return v < 0 ? -v : v;
 }
 
-
-float sampleDirectionalShadow(vec2 projCoords,float bias, float current_depth)
+float linstep(float mi, float ma, float v)
 {
-	float s = 0.0;
-
-	float closest_depth = texture(shadow_depth_map_directional, projCoords).r;
-	s = current_depth - bias > closest_depth ? 1.0 : 0.0;
-	
-	return s;
+	return clamp ((v - mi)/(ma - mi), 0, 1);
 }
 
+float ReduceLightBleeding(float p_max, float Amount) 
+{
+	return linstep(Amount, 1, p_max); 
+} 
+
+float chebyshevUpperBound(float d_blocker, vec2 d_recv)
+{
+	float p_max;
+
+	if(d_blocker <= d_recv.x)
+	{
+		return 1.0;
+	}
+
+	float variance = d_recv.y - (d_recv.x * d_recv.x);
+	variance = min( 1.0f, max( 0.0001, variance) );
+
+	float d = d_recv.x - d_blocker;
+	p_max = variance / (variance + d * d);
+
+	return ReduceLightBleeding(p_max, 0.1);
+}
+
+ 
 float CheckDirectionalShadow(float bias, vec3 lightpos, vec3 FragPos)
-{	
-	float shadow = 0.0;
-	
-	vec3 projCoords = FragPosLightSpace.xyz / FragPosLightSpace.w;
+{		
+	vec3 projCoords = FragPosLightSpace.xyz;// / FragPosLightSpace.w;
+	vec3 light_to_frag = FragPos - lightpos;
 	projCoords = projCoords * 0.5 + 0.5;
 
-	vec3 light_to_frag = FragPos - lightpos;
-	float current_depth = length(light_to_frag);
+	vec4 closest_depth_r = textureGather(shadow_depth_map_directional, projCoords.xy, 0);
+	vec4 closest_depth_g = textureGather(shadow_depth_map_directional, projCoords.xy, 1);
 
-	shadow = sampleDirectionalShadow(projCoords.xy, bias, current_depth / far);
+	vec2 avg_m = vec2((closest_depth_r.x + closest_depth_r.y + closest_depth_r.z + closest_depth_r.w) / 4.0, (closest_depth_g.x + closest_depth_g.y + closest_depth_g.z + closest_depth_g.w) / 4.0);
 
-	return shadow;
+	return 1.0 - chebyshevUpperBound(length(FragPos - lightpos) / far, avg_m);
 }
 
 vec3 CalcDirectional(vec3 diffuse_texture_color,float specular_texture_value,vec3 normal,vec3 viewdir, vec3 lightdir, vec3 FragPos)
 {
 	float bias = 0.00001;
-	//bias = max(0.001 * (1.0 - dot(normalize(fragment_normal), normalize(-directionalLight.direction))), 0.0001);
+	bias = max(0.001 * (1.0 - dot(normalize(normal), normalize(-directionalLight.direction))), 0.0001);
 
 	float directional_shadow = 0.0;
 	directional_shadow = CheckDirectionalShadow(bias, directionalLight.position, FragPos);
@@ -136,52 +152,24 @@ vec3 CalcDirectional(vec3 diffuse_texture_color,float specular_texture_value,vec
 	float spec = pow(max(dot(normalize(normal), normalize(halfway)),0.0),shininess);
 	vec3 specular = directionalLight.color * spec * specular_texture_value; // specular
 
-	return (ambient * 0.01 + diffuse * 0.8 * (1.0 - directional_shadow) + specular * 1.0 * (1.0 - directional_shadow)) * ambient_occlusion;
+	return (ambient * 0.005 + diffuse * 0.8 * (1.0 - directional_shadow) + specular * 1.0 * (1.0 - directional_shadow)) * ambient_occlusion;
 }
 
-float chebyshevUpperBound(float dist, vec2 moments)
-{
-	float p_max;
 
-	if(dist <= moments.x)
-	{
-		return 1.0;
-	}
-
-	float variance = moments.y - (moments.x * moments.x);
-	variance = max(variance, 0.00002);
-
-	float d = dist - moments.x;
-	p_max = variance / (variance + d * d);
-
-	return p_max;
-}
-
-float samplePointShadow(float bias, float current_depth, vec3 light_to_frag_direction,int shadow_map_index)
-{
-	float s = 0.0;
-
-	float static_depth, dynamic_depth;
-	float closest_depth;
-
-	static_depth = texture(point_shadow_framebuffer_depth_color_texture_static[shadow_map_index], normalize(light_to_frag_direction)).r;
-	dynamic_depth = texture(point_shadow_framebuffer_depth_color_texture_dynamic[shadow_map_index], normalize(light_to_frag_direction)).r;
-
-	closest_depth = static_depth < dynamic_depth ? static_depth : dynamic_depth;
-	s += current_depth - bias > closest_depth ? 1.0 : 0.0;
-
-	return s;
-}
 float CheckPointShadow(vec3 point_light_pos,int index, float bias, vec3 FragPos)
 {
 	float shadow = 0.0;
 
 	vec3 light_to_frag = FragPos - point_light_pos;
 
-	float current_depth = length(light_to_frag);
-	vec3 light_to_frag_direction = normalize(light_to_frag);
+	float current_depth = length(light_to_frag) / far;
 
-	shadow = samplePointShadow(bias,current_depth / far, light_to_frag_direction, index);
+	vec2 static_depth = texture(point_shadow_framebuffer_depth_color_texture_static[index], normalize(light_to_frag)).rg;
+	vec2 dynamic_depth = texture(point_shadow_framebuffer_depth_color_texture_dynamic[index], normalize(light_to_frag)).rg;
+
+	vec2 closest_depth = static_depth.r < dynamic_depth.r ? static_depth : dynamic_depth;
+
+	shadow = 1.0 - chebyshevUpperBound(current_depth, closest_depth);
 
 	return shadow;
 }
@@ -206,7 +194,7 @@ vec3 CalcPoint(PointLight pl,vec3 diffuse_texture_color, float specular_texture_
 	float distance = length(pl.position - FragPos);
 	float attenuation = 1.0/(pl.kc + pl.kl * distance + pl.kq * distance * distance);
 
-	return (ambient * 0.001 + diffuse * attenuation * 0.7 * (1.0 - point_shadow) + specular * attenuation * 0.9 * (1.0 - point_shadow));
+	return (ambient * 0.0005 + diffuse * attenuation * 0.7 * (1.0 - point_shadow) + specular * attenuation * 0.9 * (1.0 - point_shadow));
 }
 
 vec3 BloomThresholdFilter(vec3 in_color, float threshold)
@@ -222,50 +210,54 @@ vec3 BloomThresholdFilter(vec3 in_color, float threshold)
 	}
 }
 
+vec3 TangentToWorldNormal(vec3 model_normal, vec3 normal_from_texture)
+{
+	vec3 Q1  = dFdx(FragPos);
+    vec3 Q2  = dFdy(FragPos);
+    vec2 st1 = dFdx(TexCoords);
+    vec2 st2 = dFdy(TexCoords);
+
+    vec3 N   = normalize(model_normal);
+    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B  = -normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
+
+	return normalize(TBN * normal_from_texture);
+}
+
 void main()
 {
 	vec3 color = vec3(0.0);
 
 	vec3 diffuse_texture_color = texture(diffuse_texture, TexCoords).rgb;
-	float specular_texture_value = texture(specular_texture, TexCoords).r;
+	float specular_texture_value = texture(diffuse_texture, TexCoords).a;
 	FragPos = texture(position_texture, TexCoords).xyz;
 	vec3 normal_from_texture = texture(texture_normal_texture, TexCoords).xyz * 2.0 - 1.0;
 	ambient_occlusion = texture(ssao_texture, TexCoords).r;
 
-	// T space
-	// ------------------------------------------------------------------------
-	vec3 N = texture(model_normal_texture, TexCoords).rgb;
-	vec3 T = texture(tangent_texture, TexCoords).rgb;
-	T = normalize(-dot(T, N) * N + T);
-	
-	vec3 B = cross(N, T);
-	mat3 TBN = transpose(mat3(T,B,N));
-
-	vec3 FragPos_tspace = TBN * FragPos;
-	// ------------------------------------------------------------------------
-
+	vec3 normal = TangentToWorldNormal(texture(model_normal_texture, TexCoords).xyz, normalize(normal_from_texture));
 	FragPosLightSpace = directional_light_space_matrix * vec4(FragPos,1.0);
 
 	vec3 viewdir = vec3(0.0);
 	vec3 lightdir = vec3(0.0);
 
 	if(directional_lighting_enabled)
-	{
-		lightdir = TBN * directionalLight.position;
-		viewdir = TBN * camera_pos - FragPos_tspace;
+	{  
+		lightdir = directionalLight.position;
+		viewdir = camera_pos - FragPos;
 
-		color += max(CalcDirectional(diffuse_texture_color, specular_texture_value, normal_from_texture, viewdir, lightdir, FragPos),vec3(0.0));
+		color += max(CalcDirectional(diffuse_texture_color, specular_texture_value, normal, viewdir, lightdir, FragPos),vec3(0.0));
 	}
 
 	for(int i=0; i<N_POINT; ++i)
 	{
-		lightdir = TBN * pointLights[i].position - FragPos_tspace;
-		viewdir = TBN * camera_pos - FragPos_tspace;
+		lightdir = pointLights[i].position - FragPos;
+		viewdir = camera_pos - FragPos;
 
-		color += max(CalcPoint(pointLights[i],diffuse_texture_color, specular_texture_value, normal_from_texture, FragPos, viewdir, lightdir, i),vec3(0.0));
+		color += max(CalcPoint(pointLights[i],diffuse_texture_color, specular_texture_value, normal, FragPos, viewdir, lightdir, i),vec3(0.0));
 	}
 
-	//color = vec3(ambient_occlusion);
-	BrightColor = vec4(BloomThresholdFilter(vec3(0.0), 6.5), 1.0);
+	//color = diffuse_texture_color;
 	FragColor = vec4(color, 1.0);
+	BrightColor = vec4(BloomThresholdFilter(vec3(0.0), 5.0), 1.0);
 }
