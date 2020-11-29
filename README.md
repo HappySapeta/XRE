@@ -2,7 +2,7 @@
 Experimental Realtime Rendering Engine made with OpenGL and C++.
 
 
-![alt text](https://github.com/AnupamSahu/XRE/blob/main/XRE.png)
+![alt text](https://github.com/AnupamSahu/XRE/blob/main/Screenshot%20(17).png)
 ![alt text](https://github.com/AnupamSahu/XRE/blob/main/Screenshot%20(13).png)
 
 # Feature List
@@ -28,11 +28,10 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
 * VSM, PBR
 
 ## Coming Up ##
-* PBR
+* Image Based Lighting
 
 ## Planned ##
-* Variance Shadow Mapping
-* Faster PCF Techniques
+* Fast  Soft Shadows
 
 Educational Reference - https://learnopengl.com/
 
