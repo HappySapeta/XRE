@@ -14,24 +14,27 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
    * Physically Based Rendering
    * Point Lights & Directional Light
 * Advanced Lighting
-   * Soft Shadows with Selective PCF only in Forward Shading.
    * Dynamic and Static Shadow Optimization.
    * Screen Space Ambient Occlusion (SSAO).
-   * Variance Soft Shadows (currently supported in directional light only).
+   * Variance Soft Shadows
 * Model and Texture Support
   * ASSIMP loader
   * Diffuse, Specular, Normal Textures Supported
 * Post Processing
   * Bloom
   * HDR with exposure control
+* Pipeline Optimization
+  * Frustum Culling
+  * Occlusion Culling (WIP)
 
 ## Work in Progress ##
-* Contact Hardening Soft Shadows
+* VSM Soft Shadows, PBR for Forward Shading
 
 ## Coming Up ##
 * Image Based Lighting
 
 ## Planned ##
+* Screen Space Reflections
 * Global Illumination
 
 Educational Reference - https://learnopengl.com/
