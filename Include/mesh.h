@@ -36,6 +36,12 @@ namespace xre
 		std::string path;
 	};
 
+	struct BoundingVolume
+	{
+		glm::vec3 min_v;
+		glm::vec3 max_v;
+	};
+
 	class Mesh
 	{
 	public:
@@ -43,9 +49,10 @@ namespace xre
 		std::vector<Vertex>			vertices;
 		std::vector<unsigned int>	indices;
 		std::vector<Texture>		textures;
+		BoundingVolume aabb;
 
 		// Mesh Constructor
-		Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::vector<Texture>& textures);
+		Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::vector<Texture>& textures, BoundingVolume aabb);
 
 		void draw(const Shader& shader, const std::string model_name, const glm::mat4& model_matrix, const bool& is_dynamic);
 

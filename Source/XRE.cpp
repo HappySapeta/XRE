@@ -50,7 +50,7 @@ GLFWwindow* GLFWWindowManager(const int& major_version, const int& minor_version
 	int count;
 	GLFWmonitor** monitors = glfwGetMonitors(&count);
 
-	window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Xperimental Rendering Engine", NULL, NULL);
+	window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Xperimental Rendering Engine", monitors[0], NULL);
 
 	if (window == NULL)
 	{
@@ -92,14 +92,14 @@ int main()
 		return -1;
 	}
 
-	xre::RENDER_PIPELINE rendering_pipeline = xre::RENDER_PIPELINE::DEFERRED;
-	xre::LIGHTING_MODE lighting_mode = xre::LIGHTING_MODE::PBR; // PBR works with deferred only.
+	xre::RENDER_PIPELINE rendering_pipeline = xre::RENDER_PIPELINE::FORWARD;
+	xre::LIGHTING_MODE lighting_mode = xre::LIGHTING_MODE::BLINNPHONG; // PBR works with deferred only.
 
-	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f, 100.0f, 1024, 1024, rendering_pipeline, lighting_mode);
+	xre::RenderSystem* renderer = xre::RenderSystem::renderer(SCR_WIDTH, SCR_HEIGHT, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f, 100.0f, 512, 512, rendering_pipeline, lighting_mode);
 	renderer->SwitchPfx(false);
 
 	// Camera creation
-	xre::Camera camera(window, glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 70.0f, (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.01f, 100.0f, SCR_WIDTH, SCR_HEIGHT);
+	xre::Camera camera(window, glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 60.0f, (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.01f, 100.0f, SCR_WIDTH, SCR_HEIGHT);
 	xre::CameraMatrix cm;
 
 	// Lights setup
@@ -111,23 +111,12 @@ int main()
 
 	// Imported object render test
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-	/*
-	xre::Model ferrari("./Source/Resources/Models/formula1/formula1/Formula_1_mesh.fbx", "ferrari",
-		aiProcess_Triangulate
-		| aiProcess_CalcTangentSpace
-		| aiProcess_FlipUVs
-		| aiProcess_OptimizeMeshes
-		| aiProcess_OptimizeGraph);
-	xre::Shader* ferrari_shader = NULL;
-	ferrari.dynamic = false;
-	ferrari.translate(glm::vec3(0.0f));
-	ferrari.scale(glm::vec3(0.01f));
-	*/
 
 	xre::Model backpack("./Source/Resources/Models/backpack_PBR/backpack.obj", "backpack",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
 		| aiProcess_OptimizeMeshes
+		| aiProcess_GenBoundingBoxes
 		| aiProcess_OptimizeGraph);
 	xre::Shader* backpack_shader = NULL;
 	backpack.dynamic = true;
@@ -140,6 +129,7 @@ int main()
 		| aiProcess_OptimizeMeshes
 		| aiProcess_OptimizeGraph
 		| aiProcess_ForceGenNormals
+		| aiProcess_GenBoundingBoxes
 		| aiProcess_FlipUVs);
 	xre::Shader* sponza_shader = NULL;
 	sponza.translate(glm::vec3(0.0, 0.0, 0.0));
@@ -148,7 +138,6 @@ int main()
 
 	if (rendering_pipeline == xre::RENDER_PIPELINE::FORWARD)
 	{
-		//ferrari_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert", "./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
 		backpack_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
 			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
 		sponza_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
@@ -160,8 +149,6 @@ int main()
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 	// Push objects to draw queue
-	// ----------------------------------------
-	//ferrari.draw(*ferrari_shader, "ferrari");
 	backpack.draw(*backpack_shader, "backpack");
 	sponza.draw(*sponza_shader, "sponza");
 	// ----------------------------------------
@@ -178,15 +165,6 @@ int main()
 
 		if (rendering_pipeline == xre::RENDER_PIPELINE::FORWARD)
 		{
-			/*
-			ferrari_shader->use();
-			ferrari_shader->setMat4("view", cm.view);
-			ferrari_shader->setMat4("projection", cm.projection);
-			ferrari_shader->setMat4("model", ferrari.model_matrix);
-			ferrari_shader->setVec3("camera_position_vertex", camera.position);
-			ferrari_shader->setFloat("shininess", 128);
-			*/
-
 			backpack_shader->use();
 			backpack_shader->setMat4("view", cm.view);
 			backpack_shader->setMat4("projection", cm.projection);
@@ -208,7 +186,6 @@ int main()
 		glfwSwapBuffers(window);
 
 		delta_time = std::chrono::high_resolution_clock::now() - start;
-		//std::cout << (int)(1 / delta_time.count()) << "\n";
 
 		glfwPollEvents();
 	}

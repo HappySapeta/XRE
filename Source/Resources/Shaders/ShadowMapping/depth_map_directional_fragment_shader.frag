@@ -25,5 +25,4 @@ void main()
 
 	depth.r = m1;
 	depth.g = m2;
-	
 }

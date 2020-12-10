@@ -16,7 +16,7 @@ using namespace xre;
 
 std::vector<std::string> Mesh::texture_types{ "texture_diffuse", "texture_specular", "texture_normal", "shadow_depth_map_directional", "shadow_depth_map_cubemap" };
 
-Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::vector<Texture>& textures)
+Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::vector<Texture>& textures, BoundingVolume aabb)
 {
 	setup_success = false;
 	try
@@ -37,6 +37,10 @@ Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>&
 		{
 			LOGGER->log(WARN, "Mesh - Constructor", "Empty Textures Vector.");
 		}
+
+
+		this->aabb = aabb;
+
 		setupMesh();
 	}
 	catch (...)
@@ -52,7 +56,7 @@ void Mesh::draw(const Shader& shader, const std::string model_name, const glm::m
 	//if (!setup_success)
 	//	return;
 
-	RenderSystem::renderer()->draw(VAO, indices.size(), shader, model_matrix, &textures, &texture_types, model_name, is_dynamic, &setup_success);
+	RenderSystem::renderer()->draw(VAO, indices.size(), shader, model_matrix, &textures, &texture_types, model_name, is_dynamic, &setup_success, aabb);
 
 }
 

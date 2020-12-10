@@ -184,7 +184,16 @@ Mesh* Model::extractMeshData(aiMesh* ai_mesh)
 	Texture occlusion_texture = loadTextureFromPath(material, aiTextureType_AMBIENT, "texture_occlusion"); // occlusion *PBR
 	textures.push_back(occlusion_texture);
 
-	return new Mesh(vertices, indices, textures);
+	BoundingVolume aabb;
+	aabb.max_v.x = ai_mesh->mAABB.mMax.x;
+	aabb.max_v.y = ai_mesh->mAABB.mMax.y;
+	aabb.max_v.z = ai_mesh->mAABB.mMax.z;
+
+	aabb.min_v.x = ai_mesh->mAABB.mMin.x;
+	aabb.min_v.y = ai_mesh->mAABB.mMin.y;
+	aabb.min_v.z = ai_mesh->mAABB.mMin.z;
+
+	return new Mesh(vertices, indices, textures, aabb);
 }
 
 Texture Model::loadTextureFromPath(aiMaterial* material, aiTextureType texture_type, const std::string& texture_type_name)

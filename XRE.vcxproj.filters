@@ -83,6 +83,9 @@
     <ClInclude Include="Include\ray_casting.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Include\CullingTester.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Source\Resources\Shaders\SSAO\ssao_fragment_shader.frag" />

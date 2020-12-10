@@ -14,8 +14,12 @@
 #include <vector>
 #include <random>
 
+#define XRE_MAX_POINT_SHADOW_MAPS 3
+
 namespace xre
 {
+#pragma region Data Structures
+
 	enum RENDER_PIPELINE
 	{
 		DEFERRED,
@@ -27,33 +31,39 @@ namespace xre
 		BLINNPHONG
 	};
 
+	struct model_information
+	{
+		bool* setup_success = NULL;
+		std::string model_name = "";
+		bool dynamic;
+		unsigned int object_VAO = 0;
+		unsigned int indices_size = 0;
+		const xre::Shader* object_shader = NULL;
+		const glm::mat4* object_model_matrix = NULL;
+		std::vector<Texture>* object_textures = NULL;
+		std::vector<std::string>* texture_types = NULL;
+		BoundingVolume mesh_aabb;
+		bool frustum_cull = false;
+	};
+
+	struct point_light_space_matrix_cube
+	{
+		glm::mat4 point_light_space_matrix_0;
+		glm::mat4 point_light_space_matrix_1;
+		glm::mat4 point_light_space_matrix_2;
+		glm::mat4 point_light_space_matrix_3;
+		glm::mat4 point_light_space_matrix_4;
+		glm::mat4 point_light_space_matrix_5;
+	};
+
+
+#pragma endregion
+
 	class RenderSystem
 	{
 	private:
-		struct model_information
-		{
-			bool* setup_success = NULL;
-			std::string model_name = "";
-			bool dynamic;
-			unsigned int object_VAO = 0;
-			unsigned int indices_size = 0;
-			const xre::Shader* object_shader = NULL;
-			const glm::mat4* object_model_matrix = NULL;
-			std::vector<Texture>* object_textures = NULL;
-			std::vector<std::string>* texture_types = NULL;
-		};
 
-		struct point_light_space_matrix_cube
-		{
-			glm::mat4 point_light_space_matrix_0;
-			glm::mat4 point_light_space_matrix_1;
-			glm::mat4 point_light_space_matrix_2;
-			glm::mat4 point_light_space_matrix_3;
-			glm::mat4 point_light_space_matrix_4;
-			glm::mat4 point_light_space_matrix_5;
-		};
-
-		RenderSystem(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
+#pragma region Functions
 
 		void createForwardFramebuffers();
 		void createQuad();
@@ -67,8 +77,7 @@ namespace xre
 		void clearDefaultFramebuffer();
 		void clearDirectionalShadowMapFramebuffer();
 		void clearDirectionalShadowBlurringFramebuffers();
-		void clearPointShadowFramebufferStatic();
-		void clearPointShadowFramebufferDynamic();
+		void clearPointShadowFramebuffer();
 		void clearPrimaryBlurringFramebuffers();
 		void directionalShadowPass();
 		void pointShadowPass();
@@ -82,6 +91,12 @@ namespace xre
 		void createSSAOKernel(unsigned int num_samples);
 		void createSSAONoise();
 		float lerp(float a, float b, float t);
+
+		RenderSystem(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
+
+#pragma endregion
+
+#pragma region Rendering Pipeline Data
 
 		static RenderSystem* instance;
 
@@ -120,12 +135,32 @@ namespace xre
 		unsigned int DeferredFrameBuffer_primary_color_attachments[6];
 		unsigned int DeferredFinal_attachments[2];
 
+		bool horizontal = true, first_iteration = true;
+		bool first_draw = true;
+
+		std::vector<model_information> draw_queue;
+		unsigned int quadVAO, quadVBO;
+		unsigned int screen_texture;
+		bool deferred;
+
+		bool frustum_test_started;
+
+		glm::vec4 bg_color;
+
+#pragma endregion
+
+#pragma region Rendering Effects Data
+
 		// SSAO
 		unsigned int SSAOFrameBuffer;
 		unsigned int SSAOFramebuffer_color;
 
 		std::vector<glm::vec3> ssao_kernel;
 		std::vector<glm::vec3> ssao_noise;
+
+#pragma endregion
+
+#pragma region Additional Effects Data
 
 		// PrimaryBlurring Buffers
 		unsigned int PrimaryBlurringFramebuffers[2],
@@ -139,29 +174,34 @@ namespace xre
 
 		unsigned int random_rotation_texture;
 
+#pragma endregion
+
+#pragma region Shaders
+
 		Shader* deferredFillShader;
 		Shader* deferredColorShader;
 		Shader* SSAOShader;
+		Shader* quadShader;
+		Shader* depthShader_point;
+		Shader* depthShader_directional;
+		Shader* bloomSSAO_blur_Shader;
+		Shader* directional_shadow_blur_Shader;
 
+#pragma endregion
 
-		bool horizontal = true, first_iteration = true;
-		bool first_draw = true;
+#pragma region Shadow Mapping
 
-		unsigned int directional_shadow_framebuffer,
-			directional_shadow_framebuffer_depth_texture, // A cubemap texture for a directional light to facilitate compatibility with the geometry shader.
-			directional_shadow_framebuffer_renderbuffer;
-
-		unsigned int point_shadow_framebuffer_static[5], point_shadow_framebuffer_dynamic[5],
-			point_shadow_framebuffer_depth_texture_cubemap_static[5], point_shadow_framebuffer_depth_texture_cubemap_dynamic[5],
-			point_shadow_framebuffer_depth_color_texture_static[5], point_shadow_framebuffer_depth_color_texture_dynamic[5];
-		
-		// Dual Paraboloid Shadow Mapping for point lights.
-		unsigned int point_para_depth_color_static[5], point_para_depth_color_dynamic[5];
-
-		unsigned int point_shadow_depth_attachment_static[5], point_shadow_depth_attachment_dynamic[5];
+		unsigned int directional_shadow_framebuffer, directional_shadow_depth_storage, directional_shadow_renderbuffer;
+		unsigned int point_shadow_framebuffer[XRE_MAX_POINT_SHADOW_MAPS],
+			point_shadow_depth_storage[XRE_MAX_POINT_SHADOW_MAPS],
+			point_shadow_depth_attachment[XRE_MAX_POINT_SHADOW_MAPS];
 
 		unsigned int shadow_map_width, shadow_map_height;
 		float light_near_plane, light_far_plane;
+
+#pragma endregion
+
+#pragma region Lights
 
 		DirectionalLight* directional_light;
 		std::vector<PointLight*> point_lights;
@@ -172,36 +212,25 @@ namespace xre
 		point_light_space_matrix_cube point_light_space_matrix_cube_array[5];
 
 		std::vector<Light*> lights;
-		std::vector<model_information> draw_queue;
 
-		unsigned int quadVAO, quadVBO;
-		Shader* quadShader;
-		Shader* depthShader_point;
-		Shader* depthShader_directional;
-		Shader* bloomSSAO_blur_Shader;
-		Shader* directional_shadow_blur_Shader;
-		unsigned int screen_texture;
+#pragma endregion
 
-		bool deferred;
-
-		//---------------------------------------------
+#pragma region Camera
 
 		const glm::mat4* camera_view_matrix;
 		const glm::mat4* camera_projection_matrix;
 		const glm::vec3* camera_position;
 
-		//---------------------------------------------
-
-
-		glm::vec4 bg_color;
-
+#pragma endregion
+	
 	public:
+
 		static RenderSystem* renderer();
 		static RenderSystem* renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
 
 		RenderSystem(RenderSystem& other) = delete;
 
-		void draw(unsigned int vertex_array_object, unsigned int indices_size, const xre::Shader& object_shader, const glm::mat4& model_matrix, std::vector<Texture>* object_textures, std::vector<std::string>* texture_types, std::string model_name, bool isdynamic, bool* setup_success);
+		void draw(unsigned int vertex_array_object, unsigned int indices_size, const xre::Shader& object_shader, const glm::mat4& model_matrix, std::vector<Texture>* object_textures, std::vector<std::string>* texture_types, std::string model_name, bool isdynamic, bool* setup_success, BoundingVolume aabb);
 		void drawToScreen();
 		void SwitchPfx(bool option);
 

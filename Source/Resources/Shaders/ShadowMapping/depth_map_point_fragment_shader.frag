@@ -1,9 +1,11 @@
 #version 440 core
 
+in vec4 FragPos;
+
 uniform float farPlane;
 uniform vec3 lightPos;
+uniform int mode;
 
-in vec4 FragPos;
 out vec4 depth;
 
 void main()
@@ -18,6 +20,14 @@ void main()
 
 	m2 += 0.25 * (dx * dx + dy * dy);
 
-	depth.r = m1;
-	depth.g = m2;
+	if(mode == 0) // static
+	{
+		depth.r = m1;
+		depth.g = m2;
+	}
+	else if(mode == 1) // dynamic
+	{
+		depth.b = m1;
+		depth.a = m2;
+	}
 }

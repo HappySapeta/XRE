@@ -33,6 +33,7 @@
   <ItemGroup>
     <ClInclude Include="C:\Users\ROG\source\repos\opengl\include\stb_image.h" />
     <ClInclude Include="Include\camera.h" />
+    <ClInclude Include="Include\CullingTester.h" />
     <ClInclude Include="Include\image_loader.h" />
     <ClInclude Include="Include\lights.h" />
     <ClInclude Include="Include\logger.h" />

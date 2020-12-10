@@ -1,6 +1,7 @@
 #version 440 core
 
-#define MAX_POINT_LIGHTS 3
+#define MAX_POINT_LIGHTS 20
+#define MAX_POINT_SHADOWS 3
 
 layout (location = 0) out vec3 FragColor;
 layout (location = 1) out vec3 BrightColor;
@@ -41,15 +42,13 @@ uniform int N_POINT;
 
 uniform float near;
 uniform float far;
-uniform bool use_ssao;
+uniform int use_ssao;
 
 // -----------------------
 
 // Shadow Textures -------------------------------
-uniform sampler2D shadow_depth_map_directional;
-
-uniform samplerCube point_shadow_framebuffer_depth_color_texture_static[5];
-uniform samplerCube point_shadow_framebuffer_depth_color_texture_dynamic[5];
+uniform sampler2D directional_shadow_depth_map;
+uniform samplerCube point_shadow_depth_map[MAX_POINT_SHADOWS];
 // -----------------------
 
 uniform vec3 camera_pos;
@@ -151,7 +150,7 @@ float ReduceLightBleeding(float p_max, float Amount)
 } 
 
 
-float chebyshevUpperBound(float d_blocker, vec2 d_recv, float w_light)
+float chebyshevUpperBound(float d_blocker, vec2 d_recv)
 {
 	float p_max;
 
@@ -161,27 +160,29 @@ float chebyshevUpperBound(float d_blocker, vec2 d_recv, float w_light)
 	}
 
 	float variance = d_recv.y - (d_recv.x * d_recv.x);
-	variance = min( 1.0f, max( 0.0001, variance) );
+	variance = min(1.0f, max( 0.00001, variance) );
 
 	float d = d_recv.x - d_blocker;
 	p_max = variance / (variance + d * d);
 
-	float w_penumbra = w_light * (fabs(d_blocker - d_recv.x)) / d_blocker;
-
-	return ReduceLightBleeding(p_max, min(w_penumbra, 1.0));
+	return ReduceLightBleeding(p_max, 1.0);
 }
+
 
 float CheckDirectionalShadow(float bias, vec3 lightpos, vec3 FragPos)
 {		
 	vec3 projCoords = FragPosLightSpace.xyz;// / FragPosLightSpace.w;
 	projCoords = projCoords * 0.5 + 0.5;
 
-	vec4 closest_depth_r = textureGather(shadow_depth_map_directional, projCoords.xy, 0);
-	vec4 closest_depth_g = textureGather(shadow_depth_map_directional, projCoords.xy, 1);
+	vec2 closest_depth = texture(directional_shadow_depth_map, projCoords.xy, 0).rg;
 
-	vec2 avg_m = vec2((closest_depth_r.x + closest_depth_r.y + closest_depth_r.z + closest_depth_r.w) / 4.0, (closest_depth_g.x + closest_depth_g.y + closest_depth_g.z + closest_depth_g.w) / 4.0);
+	//vec4 closest_depth_r = textureGather(directional_shadow_depth_map, projCoords.xy, 0);
+	//vec4 closest_depth_g = textureGather(directional_shadow_depth_map, projCoords.xy, 1);
 
-	return chebyshevUpperBound(length(FragPos - lightpos) / far, avg_m, 1.0);
+	//vec2 avg_m = vec2((closest_depth_r.x + closest_depth_r.y + closest_depth_r.z + closest_depth_r.w) / 4.0, 
+					  //(closest_depth_g.x + closest_depth_g.y + closest_depth_g.z + closest_depth_g.w) / 4.0);
+
+	return chebyshevUpperBound(length(FragPos - lightpos) / far, closest_depth);
 }
 
 vec3 CalcDirectional(vec3 FPos, vec3 V, vec3 N, vec3 mor, vec3 F0, vec3 albedo)
@@ -215,28 +216,24 @@ float samplePointShadow(float bias, float current_depth, vec3 light_to_frag_dire
 {
 	float s = 0.0;
 
-	vec2 static_depth, dynamic_depth;
-	vec2 closest_depth;
-
-	static_depth = texture(point_shadow_framebuffer_depth_color_texture_static[shadow_map_index], normalize(light_to_frag_direction)).rg;
-	dynamic_depth = texture(point_shadow_framebuffer_depth_color_texture_dynamic[shadow_map_index], normalize(light_to_frag_direction)).rg;
-
-	closest_depth = static_depth.r < dynamic_depth.r ? static_depth : dynamic_depth;
+	vec2 static_depth = texture(point_shadow_depth_map[shadow_map_index], light_to_frag_direction).rg;
+	vec2 dynamic_depth = texture(point_shadow_depth_map[shadow_map_index], light_to_frag_direction).ba;
 	
-	s = chebyshevUpperBound(current_depth, closest_depth, 100.0);
+	vec2 closest_depth = static_depth.x < dynamic_depth.x ? static_depth : dynamic_depth; 
+
+	s = chebyshevUpperBound(current_depth, closest_depth);
 
 	return s;
 }
+
 float CheckPointShadow(vec3 point_light_pos,int index, float bias, vec3 FragPos)
 {
 	float shadow = 0.0;
 
 	vec3 light_to_frag = FragPos - point_light_pos;
+	float current_depth = length(light_to_frag) / far;
 
-	float current_depth = length(light_to_frag);
-	vec3 light_to_frag_direction = normalize(light_to_frag);
-
-	shadow = samplePointShadow(bias,current_depth / far, light_to_frag_direction, index);
+	shadow = samplePointShadow(bias,current_depth, normalize(light_to_frag), index);
 
 	return shadow;
 }
@@ -280,7 +277,12 @@ void main()
 	vec3 normal_from_texture = normalize(texture(texture_normal_texture, TexCoords).xyz * 2.0 - 1.0);
 	vec3 model_normal = texture(model_normal_texture, TexCoords).rgb;
 	vec3 mor = texture(mor_texture, TexCoords).rgb;
-	float ssao = texture(ssao_texture, TexCoords).r;
+	float ssao = 1.0;
+
+	if(use_ssao == 1)
+	{
+		ssao = texture(ssao_texture, TexCoords).r;
+	}
 
 	
 	FragPosLightSpace = directional_light_space_matrix * vec4(FragPos,1.0);
@@ -301,7 +303,7 @@ void main()
 		Lo = CalcDirectional(FragPos, viewdir, normal, mor, F0, albedo);
 		vec3 ambient = albedo * (1.0 - mor.g) * ssao;
 		
-		color += max((pow(ambient, vec3(0.8)) + Lo * directional_shadow), vec3(0.0));
+		color += max((pow(ambient, vec3(0.7)) + Lo * directional_shadow), vec3(0.0));
 	}
 
 	for(int i=0; i<N_POINT; i++)
@@ -310,8 +312,12 @@ void main()
 		
 		float bias = 0.0001;
 		//bias = max(0.01 * (1 - dot(normal, normalize(lightdir))), 0.001);
-		point_shadow = CheckPointShadow(pointLights[i].position, i, bias, FragPos);
 
+		if(i < MAX_POINT_SHADOWS) // This could be slow
+		{
+			point_shadow = CheckPointShadow(pointLights[i].position, i, bias, FragPos);
+		}
+		
 		Lo = CalcPoint(i, FragPos, viewdir, normal, mor, F0, albedo);
 		vec3 ambient = albedo * (1.0 - mor.g) * ssao;
 		
