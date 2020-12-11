@@ -37,7 +37,9 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
 * Screen Space Reflections
 * Summed Area Variance Shadow Maps
 
-Educational Reference - https://learnopengl.com/
+Educational References :
+* https://learnopengl.com/
+* https://developer.nvidia.com/gpugems/gpugems/contributors
 
 Libraries :
 * https://www.assimp.org/
