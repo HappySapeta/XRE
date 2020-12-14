@@ -45,3 +45,5 @@ Libraries :
 * https://www.assimp.org/
 * https://glm.g-truc.net/0.9.9/index.html
 * https://www.glfw.org/
+
+(Warning for anyone attempting to clone and build this project - There are multiple external links and paths that I haven't properly defined, and will cause linker problems. I plan to fix that as soon as possible but only after I have made some important features.)
