@@ -14,10 +14,9 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
    * Physically Based Rendering
    * Point Lights & Directional Light
 * Advanced Lighting
-   * Dynamic and Static Shadow Optimization.
    * Screen Space Ambient Occlusion (SSAO).
    * Exponential Variance Soft Shadows (currently works with directional lights only)
-   * Light Probes for diffuse irradiance.
+   * Light Probes for Diffuse Irradiance.
 * Model and Texture Support
   * ASSIMP loader
   * Diffuse, Specular, Normal, Occlusion Textures Supported
