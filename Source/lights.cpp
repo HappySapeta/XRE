@@ -41,7 +41,7 @@ DirectionalLight::DirectionalLight(const glm::vec3 position, const glm::vec3& co
 	m_name = light_name;
 	m_direction = glm::normalize(glm::vec3(0.0f) - position);
 
-	RenderSystem::renderer()->addToRenderSystem(this);
+	Renderer::renderer()->addToLights(this);
 }
 
 DirectionalLight::DirectionalLight()
@@ -76,7 +76,7 @@ PointLight::PointLight(const glm::vec3& position, const glm::vec3& color, const 
 	m_color = color;
 	m_intensityMultiplier = im;
 	m_name = light_name;
-	RenderSystem::renderer()->addToRenderSystem(this);
+	Renderer::renderer()->addToLights(this);
 }
 
 void PointLight::Translate(const glm::vec3& vector)
@@ -106,7 +106,7 @@ SpotLight::SpotLight(const glm::vec3& position, const glm::vec3& direction, cons
 	m_linearFalloff = kl;
 	m_quadraticFalloff = kq;
 	m_name = light_name;
-	RenderSystem::renderer()->addToRenderSystem(this);
+	Renderer::renderer()->addToLights(this);
 }
 
 void SpotLight::Translate(const glm::vec3& vector)

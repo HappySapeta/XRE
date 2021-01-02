@@ -37,7 +37,6 @@ void main()
     TexCoords = aTexCoords;
     FragPosLightSpace = directional_light_space_matrix * vec4(FragPos,1.0);
 
-
 	//----------------------------------------------------------------------
 
 	mat3 normalMatrix = transpose(inverse(mat3(model)));

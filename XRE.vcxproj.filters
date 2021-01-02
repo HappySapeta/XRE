@@ -45,6 +45,12 @@
     <ClCompile Include="Source\gl_error.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\ibl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\LightingProbes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Include\logger.h">
@@ -80,10 +86,13 @@
     <ClInclude Include="Include\xre_configuration.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Include\ray_casting.h">
+    <ClInclude Include="Include\CullingTester.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Include\CullingTester.h">
+    <ClInclude Include="Include\ibl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\LightingProbes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -95,9 +104,6 @@
     <None Include="Source\Resources\Shaders\BlinnPhong\forward_bphong_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\BlinnPhong\forward_bphong_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\Common\geometry_shader.geom" />
-    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_fragment_shader.frag" />
-    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_tspace_fragment_shader.frag" />
-    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_tspace_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\Quad\quad_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\Quad\quad_vertex_shader.vert" />
@@ -106,8 +112,16 @@
     <None Include="Source\Resources\Shaders\ShadowMapping\depth_map_point_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\ShadowMapping\depth_map_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_pbr_fragment_shader.frag" />
-    <None Include="Source\Resources\Shaders\PBR\deferred_pbr_color_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\Blur\bloom_ssao_blur_shader.frag" />
     <None Include="Source\Resources\Shaders\Blur\directional_soft_shadow_shadow.frag" />
+    <None Include="Source\Resources\Shaders\IBL\renderToCube_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\renderToCube_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\IBL\renderToCube_geometry_shader.geom" />
+    <None Include="Source\Resources\Shaders\IBL\lightmap_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\IBL\irradiance_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\forward_bphong_shadowless_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\forward_bphong_shadowless_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\PBR\deferred_pbr_color_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_bphong_fragment_shader.frag" />
   </ItemGroup>
 </Project>

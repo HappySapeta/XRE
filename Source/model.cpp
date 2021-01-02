@@ -40,7 +40,7 @@ Model::Model(const std::string& file_path, const std::string& name, unsigned int
 	processNode(scene->mRootNode);
 }
 
-void Model::draw(const Shader& model_shader,const std::string& model_name)
+void Model::draw(const Shader& model_shader, const std::string& model_name)
 {
 	for (unsigned i = 0; i < meshes.size(); i++)
 	{
@@ -238,26 +238,43 @@ unsigned int Model::GetTexture(const std::string& texture_path, bool gamma)
 
 	if (data)
 	{
+		unsigned int internal_format;
 		unsigned int format = GL_RGB;
-		if (num_channels == 1)
-			format = GL_RED;
-		else if (num_channels == 3)
-			format = GL_RGB;
-		else if(num_channels == 4)
-			format = GL_RGBA;
 
-		unsigned int internal_format = gamma ? GL_SRGB_ALPHA : format;
+		if (num_channels == 1)
+		{
+			format = GL_RED;
+			internal_format = GL_COMPRESSED_RED;
+		}
+
+		else if (num_channels == 3)
+		{
+			format = GL_RGB;
+			internal_format = GL_COMPRESSED_RGB;
+		}
+
+		else if (num_channels == 4)
+		{
+			format = GL_RGBA;
+			internal_format = GL_COMPRESSED_RGBA;
+
+			if (gamma)
+			{
+				internal_format = GL_COMPRESSED_SRGB_ALPHA;
+			}
+		}
+
 
 		glBindTexture(GL_TEXTURE_2D, texture_id);
-		glTexImage2D(GL_TEXTURE_2D, 0,internal_format, texture_width, texture_height, 0, format, GL_UNSIGNED_BYTE, data);
+		glTexImage2D(GL_TEXTURE_2D, 0, internal_format, texture_width, texture_height, 0, format, GL_UNSIGNED_BYTE, data);
 		glGenerateMipmap(GL_TEXTURE_2D);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, 4.0);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, 8);
 
 		stbi_image_free(data);
-	}		
+	}
 	else
 	{
 		LOGGER->log(xre::ERROR, "LOAD TEXTURE", "Failed to create texture : " + std::string(file_path) + " : " + stbi_failure_reason());

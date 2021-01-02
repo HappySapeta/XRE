@@ -5,8 +5,12 @@ layout (location = 1) in vec2 aTexCoords;
 
 out vec2 TexCoords;
 
+out vec3 view_ray;
+
 void main()
 {
 	gl_Position = vec4(aPos.x,aPos.y,0.0, 1.0);
 	TexCoords = aTexCoords;
+
+	view_ray = vec3(aPos.x, aPos.y, 1.0);
 }

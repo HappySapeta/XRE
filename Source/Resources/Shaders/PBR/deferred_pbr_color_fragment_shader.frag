@@ -1,7 +1,10 @@
 #version 440 core
 
-#define MAX_POINT_LIGHTS 20
+#define MAX_POINT_LIGHTS 3
 #define MAX_POINT_SHADOWS 3
+#define MIN_VARIANCE 0.00001
+#define LIGHT_BLEED_REDUCTION_AMOUNT 1.0
+#define NUM_LIGHT_PROBES 30
 
 layout (location = 0) out vec3 FragColor;
 layout (location = 1) out vec3 BrightColor;
@@ -22,11 +25,25 @@ struct PointLight {
 	float kq;
 };
 
+struct LightProbe
+{
+	vec3 position;
+	int irradiance_cubemap;
+};
+// ------------------------
+
+uniform LightProbe light_probes[NUM_LIGHT_PROBES];
+uniform samplerCubeArray light_probe_cubemaps;
+
 // ------------------------
 
 vec3 FragPos;
 vec4 FragPosLightSpace;
+vec3 tangent;
+
 in vec2 TexCoords;
+in vec3 view_ray;
+
 
 // -----------------------
 
@@ -49,26 +66,30 @@ uniform int use_ssao;
 // Shadow Textures -------------------------------
 uniform sampler2D directional_shadow_depth_map;
 uniform samplerCube point_shadow_depth_map[MAX_POINT_SHADOWS];
+
 // -----------------------
 
 uniform vec3 camera_pos;
+uniform vec3 camera_look_direction;
+uniform mat4 inv_projection;
+uniform mat4 inv_view;
 
 uniform sampler2D diffuse_texture; //albedo
-uniform sampler2D model_normal_texture;
-uniform sampler2D texture_normal_texture;
-uniform sampler2D position_texture;
+uniform sampler2D normal_texture;
+uniform sampler2D depth_texture;
 uniform sampler2D ssao_texture;
 uniform sampler2D mor_texture; // Metallic, Occlusion, Roughness
-
+uniform float positive_exponent;
+uniform float negative_exponent;
 // -----------------------
 
 const float PI = 3.14159265359;
 
 // -----------------------
 
-vec3 fresnelSchlick(float cosine, vec3 F0)
+vec3 fresnelSchlick(float cosine, vec3 F0, float roughness)
 {
-	return F0 + (1.0 - F0) * pow(1.0 - cosine, 5.0);
+	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosine, 5.0);
 }
 
 float DistributionGGX(vec3 N, vec3 H, float R) // Normal, Halfway, Roughness
@@ -107,20 +128,6 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float R)
 	return ggx1 * ggx2;
 }
 
-vec3 TangentToWorldNormal(vec3 model_normal, vec3 normal_from_texture)
-{
-	vec3 Q1  = dFdx(FragPos);
-    vec3 Q2  = dFdy(FragPos);
-    vec2 st1 = dFdx(TexCoords);
-    vec2 st2 = dFdy(TexCoords);
-
-    vec3 N   = normalize(model_normal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
-
-	return normalize(TBN * normal_from_texture);
-}
 float fabs(float v)
 {
 	return v < 0 ? -v : v;
@@ -149,24 +156,37 @@ float ReduceLightBleeding(float p_max, float Amount)
 	return linstep(Amount, 1, p_max); 
 } 
 
-
-float chebyshevUpperBound(float d_blocker, vec2 d_recv)
+vec2 warpDepth(float depth)
 {
-	float p_max;
-
-	if(d_blocker <= d_recv.x)
-	{
-		return 1.0;
-	}
-
-	float variance = d_recv.y - (d_recv.x * d_recv.x);
-	variance = min(1.0f, max( 0.00001, variance) );
-
-	float d = d_recv.x - d_blocker;
-	p_max = variance / (variance + d * d);
-
-	return ReduceLightBleeding(p_max, 1.0);
+    depth = 2.0f * depth - 1.0f;
+    float pos = exp(positive_exponent * depth);
+    float neg = -exp(-negative_exponent * depth);
+    vec2 wDepth = vec2(pos, neg);
+    return wDepth;
 }
+
+float chebyshevUpperBound(vec2 moments, float mean, float minVariance, int light_type) // light_type : 0 - directional, 1 - point
+{
+	float shadow = 1.0;
+    if(mean <= moments.x)
+    {
+        return 1.0;
+    }
+    else
+    {
+        float variance = moments.y - (moments.x * moments.x);
+        variance = max(variance, minVariance);
+        float d = mean - moments.x;
+        shadow = variance / (variance + (d * d));
+		if(light_type == 1)
+		{
+			return ReduceLightBleeding(shadow, LIGHT_BLEED_REDUCTION_AMOUNT);
+		}
+        else
+			return shadow;
+    }
+}
+
 
 
 float CheckDirectionalShadow(float bias, vec3 lightpos, vec3 FragPos)
@@ -174,7 +194,7 @@ float CheckDirectionalShadow(float bias, vec3 lightpos, vec3 FragPos)
 	vec3 projCoords = FragPosLightSpace.xyz;// / FragPosLightSpace.w;
 	projCoords = projCoords * 0.5 + 0.5;
 
-	vec2 closest_depth = texture(directional_shadow_depth_map, projCoords.xy, 0).rg;
+	vec4 closest_depth = texture(directional_shadow_depth_map, projCoords.xy, 0).rgba;
 
 	//vec4 closest_depth_r = textureGather(directional_shadow_depth_map, projCoords.xy, 0);
 	//vec4 closest_depth_g = textureGather(directional_shadow_depth_map, projCoords.xy, 1);
@@ -182,7 +202,19 @@ float CheckDirectionalShadow(float bias, vec3 lightpos, vec3 FragPos)
 	//vec2 avg_m = vec2((closest_depth_r.x + closest_depth_r.y + closest_depth_r.z + closest_depth_r.w) / 4.0, 
 					  //(closest_depth_g.x + closest_depth_g.y + closest_depth_g.z + closest_depth_g.w) / 4.0);
 
-	return chebyshevUpperBound(length(FragPos - lightpos) / far, closest_depth);
+	//float cup =  chebyshevUpperBound(length(FragPos - lightpos) / far, closest_depth);
+
+	vec2 pos_moments = vec2(closest_depth.x, closest_depth.z);
+	vec2 neg_moments = vec2(closest_depth.y, closest_depth.w);
+
+	vec2 wDepth = warpDepth(length(FragPos - lightpos) / far);
+
+	vec2 depthScale = 0.01 * vec2(positive_exponent, negative_exponent) * wDepth;
+	vec2 minVariance = depthScale * depthScale;
+	float pos_result = chebyshevUpperBound(pos_moments, wDepth.x, minVariance.x, 0);
+	float neg_result = chebyshevUpperBound(neg_moments, wDepth.y, minVariance.y, 0);
+
+	return min(pos_result, neg_result);
 }
 
 vec3 CalcDirectional(vec3 FPos, vec3 V, vec3 N, vec3 mor, vec3 F0, vec3 albedo)
@@ -196,7 +228,7 @@ vec3 CalcDirectional(vec3 FPos, vec3 V, vec3 N, vec3 mor, vec3 F0, vec3 albedo)
 
 	float NDF = DistributionGGX(N, halfway, mor.b);
 	float G = GeometrySmith(N, V, L, mor.b);
-	vec3 F = fresnelSchlick(max(dot(halfway, V), 0.0), F0);
+	vec3 F = fresnelSchlick(max(dot(halfway, V), 0.0), F0, mor.z);
 
 	vec3 numerator = NDF * G * F;
 	float denominator = 4 * max(dot(N, V), 0.001) * max(dot(N, L), 0.001) + 0.0001;
@@ -221,7 +253,7 @@ float samplePointShadow(float bias, float current_depth, vec3 light_to_frag_dire
 	
 	vec2 closest_depth = static_depth.x < dynamic_depth.x ? static_depth : dynamic_depth; 
 
-	s = chebyshevUpperBound(current_depth, closest_depth);
+	s = chebyshevUpperBound(closest_depth, current_depth, MIN_VARIANCE, 1);
 
 	return s;
 }
@@ -251,7 +283,7 @@ vec3 CalcPoint(int index, vec3 FPos, vec3 V, vec3 N, vec3 mor, vec3 F0, vec3 alb
 
 	float NDF = DistributionGGX(N, halfway, mor.b);
 	float G = GeometrySmith(N, V, normalize(L), mor.b);
-	vec3 F = fresnelSchlick(max(dot(halfway, V), 0.0), F0);
+	vec3 F = fresnelSchlick(max(dot(halfway, V), 0.0), F0, mor.z);
 
 	vec3 numerator = NDF * G * F;
 	float denominator = 4 * max(dot(N, V), 0.001) * max(dot(N, normalize(L)), 0.001) + 0.0001;
@@ -267,16 +299,24 @@ vec3 CalcPoint(int index, vec3 FPos, vec3 V, vec3 N, vec3 mor, vec3 F0, vec3 alb
 	return Lo;
 }
 
+vec3 ScreenToWorldPos()
+{
+	float z = texture(depth_texture, TexCoords).r * 2.0 - 1.0;
+
+	vec4 clipSpacePosition = vec4(TexCoords * 2.0 - 1.0, z, 1.0);
+	vec4 viewSpacePosition = inv_projection * clipSpacePosition;
+
+	viewSpacePosition /= viewSpacePosition.w;
+
+	return (inv_view * viewSpacePosition).xyz;
+}
 
 void main()
 {
 	vec3 color = vec3(0.0);
-
-	vec3 albedo = pow(texture(diffuse_texture, TexCoords).rgb, vec3(2.2));
-	FragPos = texture(position_texture, TexCoords).xyz;
-	vec3 normal_from_texture = normalize(texture(texture_normal_texture, TexCoords).xyz * 2.0 - 1.0);
-	vec3 model_normal = texture(model_normal_texture, TexCoords).rgb;
+	vec3 albedo = pow(texture(diffuse_texture, TexCoords).rgb, vec3(2.0));
 	vec3 mor = texture(mor_texture, TexCoords).rgb;
+	vec3 normal = texture(normal_texture, TexCoords).rgb;
 	float ssao = 1.0;
 
 	if(use_ssao == 1)
@@ -284,15 +324,54 @@ void main()
 		ssao = texture(ssao_texture, TexCoords).r;
 	}
 
-	
+	FragPos = ScreenToWorldPos();
 	FragPosLightSpace = directional_light_space_matrix * vec4(FragPos,1.0);
 
 	vec3 viewdir = normalize(camera_pos - FragPos);
-	vec3 normal = TangentToWorldNormal(model_normal, normal_from_texture);
 
 	vec3 F0 = vec3(0.04);
 	F0 = mix(F0, albedo, mor.r);
 	vec3 Lo = vec3(0.0);
+
+	vec3 kS = fresnelSchlick(max(dot(normal, viewdir), 0.0), F0, mor.z);
+	vec3 kD = 1.0 - kS;
+	
+	vec3 irradiance;
+	vec3 ambient;
+
+	if(true)
+	{
+		float min_d = 1000000.0;
+		int closest_probe_index = 0;
+		for(int i=0; i<NUM_LIGHT_PROBES; i++)
+		{
+			float d = length(light_probes[i].position - FragPos);
+			if(d < min_d)
+			{
+				min_d = d;
+				closest_probe_index = i;
+			}
+		}
+		vec3 Q1  = dFdx(FragPos);
+		vec3 Q2  = dFdy(FragPos);
+		vec2 st1 = dFdx(TexCoords);
+		vec2 st2 = dFdy(TexCoords);
+		tangent  = normalize(Q1*st2.t - Q2*st1.t);
+		vec3 sample_vectors[5] = {normal, tangent, -tangent, cross(tangent, normal), -cross(tangent, normal)};
+
+		irradiance = texture(light_probe_cubemaps, vec4(normalize(sample_vectors[0]), closest_probe_index)).rgb;
+		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[1]), closest_probe_index)).rgb;
+		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[2]), closest_probe_index)).rgb;
+		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[3]), closest_probe_index)).rgb;
+		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[4]), closest_probe_index)).rgb;
+
+		irradiance /= 5;
+
+		ambient = (kD * irradiance * albedo) * (1.0 - mor.g);
+	}
+	
+	//ambient = albedo;
+
 
 	if(directional_lighting_enabled)
 	{
@@ -301,16 +380,14 @@ void main()
 		float directional_shadow = CheckDirectionalShadow(bias, directionalLight.position, FragPos);
 
 		Lo = CalcDirectional(FragPos, viewdir, normal, mor, F0, albedo);
-		vec3 ambient = albedo * (1.0 - mor.g) * ssao;
 		
-		color += max((pow(ambient, vec3(0.7)) + Lo * directional_shadow), vec3(0.0));
+		color += max((ambient * 0.5) + (Lo * directional_shadow), vec3(0.0)) * ssao;
 	}
 
 	for(int i=0; i<N_POINT; i++)
 	{
 		float point_shadow = 0.0;
-		
-		float bias = 0.0001;
+		float bias = 0.01;
 		//bias = max(0.01 * (1 - dot(normal, normalize(lightdir))), 0.001);
 
 		if(i < MAX_POINT_SHADOWS) // This could be slow
@@ -319,9 +396,8 @@ void main()
 		}
 		
 		Lo = CalcPoint(i, FragPos, viewdir, normal, mor, F0, albedo);
-		vec3 ambient = albedo * (1.0 - mor.g) * ssao;
 		
-		color += max((ambient * (0.03) + Lo * (point_shadow)), vec3(0.0));
+		color += max(((ambient * (0.1) + Lo * (point_shadow))), vec3(0.0)) * ssao;
 	}
 
 	FragColor = color;

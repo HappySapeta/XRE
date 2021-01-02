@@ -23,7 +23,8 @@ namespace xre
 	enum RENDER_PIPELINE
 	{
 		DEFERRED,
-		FORWARD
+		FORWARD,
+		DEBUG_MODE,
 	};
 	enum LIGHTING_MODE
 	{
@@ -46,29 +47,33 @@ namespace xre
 		bool frustum_cull = false;
 	};
 
-	struct point_light_space_matrix_cube
-	{
-		glm::mat4 point_light_space_matrix_0;
-		glm::mat4 point_light_space_matrix_1;
-		glm::mat4 point_light_space_matrix_2;
-		glm::mat4 point_light_space_matrix_3;
-		glm::mat4 point_light_space_matrix_4;
-		glm::mat4 point_light_space_matrix_5;
-	};
-
-
 #pragma endregion
 
-	class RenderSystem
+	class Renderer
 	{
 	private:
 
+#pragma region Private Data Structures
+
+		struct point_light_space_matrix_cube
+		{
+			glm::mat4 point_light_space_matrix_0;
+			glm::mat4 point_light_space_matrix_1;
+			glm::mat4 point_light_space_matrix_2;
+			glm::mat4 point_light_space_matrix_3;
+			glm::mat4 point_light_space_matrix_4;
+			glm::mat4 point_light_space_matrix_5;
+		};
+
+#pragma endregion
+
 #pragma region Functions
 
+		void sortDrawQueue();
 		void createForwardFramebuffers();
-		void createQuad();
-		void createShadowMapFramebuffers();
 		void createDeferredBuffers();
+		void createShadowMapFramebuffers();
+		void createQuad();
 		void clearDeferredBuffers();
 		void createDirectionalLightMatrix(glm::vec3 light_position, glm::vec3 light_front);
 		void createPointLightMatrices(glm::vec3 light_position, unsigned int light_index);
@@ -85,25 +90,23 @@ namespace xre
 		void deferredFillPass();
 		void deferredColorPass();
 		void blurPass(unsigned int main_color_texture, unsigned int ssao_texture, unsigned int amount);
-		void directionalSoftShadowPass();
+		void SoftShadowPass(unsigned int amount);
 		void SSAOPass();
 		void createSSAOData();
 		void createSSAOKernel(unsigned int num_samples);
 		void createSSAONoise();
-		float lerp(float a, float b, float t);
 
-		RenderSystem(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
+		Renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
 
 #pragma endregion
 
 #pragma region Rendering Pipeline Data
 
-		static RenderSystem* instance;
+		static Renderer* instance;
 
 		RENDER_PIPELINE rendering_pipeline;
 		LIGHTING_MODE lighting_model;
 
-		// just making shit more complicated than it has to be.
 		unsigned int framebuffer_width, framebuffer_height;
 
 		// Forward Shading
@@ -124,26 +127,27 @@ namespace xre
 		unsigned int DeferredFinal_primary_texture,
 			DeferredFinal_secondary_texture;
 
-		unsigned int DeferredGbuffer_position,
+		unsigned int DeferredGbuffer_depth,
 			DeferredGbuffer_color,
-			DeferredGbuffer_model_normal,
-			DeferredGbuffer_tangent,
-			DeferredGbuffer_texture_normal,
-			DeferredGbuffer_texture_normal_view,
+			DeferredGbuffer_normal,
 			DeferredGbuffer_texture_mor;
 
-		unsigned int DeferredFrameBuffer_primary_color_attachments[6];
+		unsigned int num_draw_buffers;
+		unsigned int DeferredFrameBuffer_primary_color_attachments[4];
 		unsigned int DeferredFinal_attachments[2];
 
 		bool horizontal = true, first_iteration = true;
 		bool first_draw = true;
+		bool lightmaps_drawn = false;
 
 		std::vector<model_information> draw_queue;
 		unsigned int quadVAO, quadVBO;
 		unsigned int screen_texture;
 		bool deferred;
 
-		bool frustum_test_started;
+		bool hdri_loaded;
+
+		unsigned int light_probe_cubemap_array;
 
 		glm::vec4 bg_color;
 
@@ -173,6 +177,7 @@ namespace xre
 			DirectionalShadowBlurring_soft_shadow_textures[2];
 
 		unsigned int random_rotation_texture;
+		float positive_exponent, negative_exponent;
 
 #pragma endregion
 
@@ -186,6 +191,7 @@ namespace xre
 		Shader* depthShader_directional;
 		Shader* bloomSSAO_blur_Shader;
 		Shader* directional_shadow_blur_Shader;
+		Shader* debugShader;
 
 #pragma endregion
 
@@ -199,6 +205,8 @@ namespace xre
 		unsigned int shadow_map_width, shadow_map_height;
 		float light_near_plane, light_far_plane;
 
+		unsigned int shadow_frames = 0;
+
 #pragma endregion
 
 #pragma region Lights
@@ -209,7 +217,7 @@ namespace xre
 		glm::mat4 directional_light_projection;
 		glm::mat4 directional_light_space_matrix;
 		glm::mat4 point_light_projection;
-		point_light_space_matrix_cube point_light_space_matrix_cube_array[5];
+		point_light_space_matrix_cube point_light_space_matrix_cube_array[XRE_MAX_POINT_SHADOW_MAPS];
 
 		std::vector<Light*> lights;
 
@@ -220,22 +228,29 @@ namespace xre
 		const glm::mat4* camera_view_matrix;
 		const glm::mat4* camera_projection_matrix;
 		const glm::vec3* camera_position;
+		const glm::vec3* camera_front;
 
 #pragma endregion
 	
+#pragma region debug
+
+		unsigned int irradiance_map;
+
+#pragma endregion
+
 	public:
 
-		static RenderSystem* renderer();
-		static RenderSystem* renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
+		static Renderer* renderer();
+		static Renderer* renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode);
 
-		RenderSystem(RenderSystem& other) = delete;
+		Renderer(Renderer& other) = delete;
+		Renderer() = delete;
 
-		void draw(unsigned int vertex_array_object, unsigned int indices_size, const xre::Shader& object_shader, const glm::mat4& model_matrix, std::vector<Texture>* object_textures, std::vector<std::string>* texture_types, std::string model_name, bool isdynamic, bool* setup_success, BoundingVolume aabb);
-		void drawToScreen();
-		void SwitchPfx(bool option);
-
-		void setCameraMatrices(const glm::mat4* view, const glm::mat4* projection, const glm::vec3* position);
-		void addToRenderSystem(Light* light);
+		void pushToDrawQueue(unsigned int vertex_array_object, unsigned int indices_size, const xre::Shader& object_shader, const glm::mat4& model_matrix, std::vector<Texture>* object_textures, std::vector<std::string>* texture_types, std::string model_name, bool isdynamic, bool* setup_success, BoundingVolume aabb);
+		void Render();
+		void StartOptimizationThreads();
+		void setCameraMatrices(const glm::mat4* view, const glm::mat4* projection, const glm::vec3* position, const glm::vec3* front);
+		void addToLights(Light* light);
 
 		glm::vec3 world_view_pos;
 	};

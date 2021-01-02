@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -22,6 +22,8 @@
     <ClCompile Include="Source\camera.cpp" />
     <ClCompile Include="Source\gl_error.cpp" />
     <ClCompile Include="Source\glad.c" />
+    <ClCompile Include="Source\ibl.cpp" />
+    <ClCompile Include="Source\LightingProbes.cpp" />
     <ClCompile Include="Source\lights.cpp" />
     <ClCompile Include="Source\logging_module.cpp" />
     <ClCompile Include="Source\mesh.cpp" />
@@ -34,12 +36,13 @@
     <ClInclude Include="C:\Users\ROG\source\repos\opengl\include\stb_image.h" />
     <ClInclude Include="Include\camera.h" />
     <ClInclude Include="Include\CullingTester.h" />
+    <ClInclude Include="Include\ibl.h" />
     <ClInclude Include="Include\image_loader.h" />
+    <ClInclude Include="Include\LightingProbes.h" />
     <ClInclude Include="Include\lights.h" />
     <ClInclude Include="Include\logger.h" />
     <ClInclude Include="Include\mesh.h" />
     <ClInclude Include="Include\model.h" />
-    <ClInclude Include="Include\ray_casting.h" />
     <ClInclude Include="Include\renderer.h" />
     <ClInclude Include="Include\shader.h" />
     <ClInclude Include="Include\stb_image.h" />
@@ -53,11 +56,16 @@
     <None Include="Source\Resources\Shaders\Blur\bloom_ssao_blur_shader.frag" />
     <None Include="Source\Resources\Shaders\Blur\directional_soft_shadow_shadow.frag" />
     <None Include="Source\Resources\Shaders\Common\geometry_shader.geom" />
-    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_bphong_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_pbr_fragment_shader.frag" />
-    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_tspace_fragment_shader.frag" />
-    <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_tspace_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\IBL\forward_bphong_shadowless_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\forward_bphong_shadowless_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\IBL\lightmap_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\IBL\irradiance_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\renderToCube_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\renderToCube_geometry_shader.geom" />
+    <None Include="Source\Resources\Shaders\IBL\renderToCube_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\PBR\deferred_pbr_color_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\Quad\quad_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\Quad\quad_vertex_shader.vert" />
