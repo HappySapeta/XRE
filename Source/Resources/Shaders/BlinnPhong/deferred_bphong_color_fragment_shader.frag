@@ -159,7 +159,7 @@ vec3 CalcDirectional(vec3 diffuse_texture_color,float specular_texture_value,vec
 	float spec = pow(max(dot(normalize(normal), normalize(halfway)),0.0),shininess);
 	vec3 specular = directionalLight.color * spec * specular_texture_value; // specular
 
-	return (ambient * 0.005 + diffuse * 0.8 * (1.0 - directional_shadow) + specular * 1.0 * (1.0 - directional_shadow)) * ambient_occlusion;
+	return (ambient * 0.0025 + diffuse * 0.8 * (directional_shadow) + specular * 1.0 * (directional_shadow)) * ambient_occlusion;
 }
 
 
@@ -262,7 +262,7 @@ void main()
 	vec3 diffuse_texture_color = texture(diffuse_texture, TexCoords).rgb;
 	float specular_texture_value = texture(diffuse_texture, TexCoords).a;
 	FragPos = ScreenToWorldPos();
-	vec3 normal = texture(normal_texture, TexCoords).rgb;
+	vec3 normal = normalize(texture(normal_texture, TexCoords).rgb * 2.0 - 1.0);
 	float ssao = 1.0;
 
 	if(use_ssao == 1)
@@ -293,5 +293,5 @@ void main()
 
 	//color = diffuse_texture_color;
 	FragColor = color;
-	BrightColor = BloomThresholdFilter(color, 5.0);
+	BrightColor = BloomThresholdFilter(color, 6.0);
 }

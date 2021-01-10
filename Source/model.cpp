@@ -180,10 +180,6 @@ Mesh* Model::extractMeshData(aiMesh* ai_mesh)
 	Texture roughness_texture = loadTextureFromPath(material, aiTextureType_SHININESS, "texture_roughness"); // roughness *PBR
 	textures.push_back(roughness_texture);
 
-	LOGGER->log(INFO, "LOAD TEXTURE", "Loading occlusion texture.");
-	Texture occlusion_texture = loadTextureFromPath(material, aiTextureType_AMBIENT, "texture_occlusion"); // occlusion *PBR
-	textures.push_back(occlusion_texture);
-
 	BoundingVolume aabb;
 	aabb.max_v.x = ai_mesh->mAABB.mMax.x;
 	aabb.max_v.y = ai_mesh->mAABB.mMax.y;
@@ -250,7 +246,7 @@ unsigned int Model::GetTexture(const std::string& texture_path, bool gamma)
 		else if (num_channels == 3)
 		{
 			format = GL_RGB;
-			internal_format = GL_COMPRESSED_RGB;
+			internal_format = GL_COMPRESSED_SRGB;
 		}
 
 		else if (num_channels == 4)
@@ -271,13 +267,13 @@ unsigned int Model::GetTexture(const std::string& texture_path, bool gamma)
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, 8);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, 16);
 
 		stbi_image_free(data);
 	}
 	else
 	{
-		LOGGER->log(xre::ERROR, "LOAD TEXTURE", "Failed to create texture : " + std::string(file_path) + " : " + stbi_failure_reason());
+		LOGGER->log(xre::ERROR, "LOAD TEXTURE", "Failed to create texture : " + std::string(texture_path) + " : " + stbi_failure_reason());
 		stbi_image_free(data);
 	}
 

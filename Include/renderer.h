@@ -147,7 +147,9 @@ namespace xre
 
 		bool hdri_loaded;
 
-		unsigned int light_probe_cubemap_array;
+		unsigned int diffuse_irradiance_light_probe_cubemap_array;
+		unsigned int specular_irradiance_light_probe_cubemap_array;
+		unsigned int brdfLUT;
 
 		glm::vec4 bg_color;
 

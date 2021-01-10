@@ -20,7 +20,6 @@ uniform sampler2D texture_roughness;
 
 uniform vec3 camera_position;
 
-
 vec3 TangentToWorldNormal(vec3 normal_from_texture)
 {
     vec3 B  = normalize(cross(object_normal, object_tangent));
@@ -39,7 +38,7 @@ void main()
 	}
 
 	FragColorOut = vec4(diffuse_color.rgb, 1.0);
-	FragNormalOut = TangentToWorldNormal(normalize(texture(texture_normal, TexCoords).xyz * 2.0 - 1.0));
+	FragNormalOut = TangentToWorldNormal(normalize(texture(texture_normal, TexCoords).xyz * 2.0 - 1.0)) * 0.5 + 0.5;
 	DepthOut = gl_FragCoord.z;
 	MOR = vec3(texture(texture_specular, TexCoords).r, texture(texture_occlusion, TexCoords).r, texture(texture_roughness, TexCoords).r);
 }

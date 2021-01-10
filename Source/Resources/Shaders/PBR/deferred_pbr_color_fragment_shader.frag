@@ -33,7 +33,9 @@ struct LightProbe
 // ------------------------
 
 uniform LightProbe light_probes[NUM_LIGHT_PROBES];
-uniform samplerCubeArray light_probe_cubemaps;
+uniform samplerCubeArray diffuse_irradiance_light_probe_cubemaps;
+uniform samplerCubeArray specular_irradiance_light_probe_cubemaps;
+uniform sampler2D brdfLUT;
 
 // ------------------------
 
@@ -311,13 +313,52 @@ vec3 ScreenToWorldPos()
 	return (inv_view * viewSpacePosition).xyz;
 }
 
+int FindClosestProbe(vec3 position)
+{
+	int cpi = 0;
+	float min_d = 1000000.0;
+	for(int i=0; i<NUM_LIGHT_PROBES; i++)
+	{
+		float d = length(light_probes[i].position - FragPos);
+		if(d < min_d)
+		{
+			min_d = d;
+			cpi = i;
+		}
+	}
+
+	return cpi;
+}
+
+vec3 ParallaxCorrect(vec3 position, vec3 viewdir, vec3 direction, vec3 light_probe_position)
+{
+	vec3 BoxMax = light_probe_position + vec3(1.0) * 2.0;
+	vec3 BoxMin = light_probe_position - vec3(-1.0) * 2.0;
+
+	vec3 FirstPlaneIntersect = (BoxMax - position) / direction;
+	vec3 SecondPlaneIntersect = (BoxMin - position) / direction;
+
+	vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
+
+	float dist = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
+
+	vec3 X = position + direction * dist;
+
+	return normalize(X - light_probe_position);
+}
+
 void main()
 {
 	vec3 color = vec3(0.0);
 	vec3 albedo = pow(texture(diffuse_texture, TexCoords).rgb, vec3(2.0));
 	vec3 mor = texture(mor_texture, TexCoords).rgb;
-	vec3 normal = texture(normal_texture, TexCoords).rgb;
+	vec3 normal = normalize(texture(normal_texture, TexCoords).xyz * 2.0 - 1.0);
 	float ssao = 1.0;
+	vec3 irradiance;
+	vec3 ambient;
+	vec3 specular;
+	vec3 specularIrradiance;
+	vec2 envBRDF;
 
 	if(use_ssao == 1)
 	{
@@ -329,6 +370,7 @@ void main()
 
 	vec3 viewdir = normalize(camera_pos - FragPos);
 
+	
 	vec3 F0 = vec3(0.04);
 	F0 = mix(F0, albedo, mor.r);
 	vec3 Lo = vec3(0.0);
@@ -336,42 +378,22 @@ void main()
 	vec3 kS = fresnelSchlick(max(dot(normal, viewdir), 0.0), F0, mor.z);
 	vec3 kD = 1.0 - kS;
 	
-	vec3 irradiance;
-	vec3 ambient;
-
-	if(true)
-	{
-		float min_d = 1000000.0;
-		int closest_probe_index = 0;
-		for(int i=0; i<NUM_LIGHT_PROBES; i++)
-		{
-			float d = length(light_probes[i].position - FragPos);
-			if(d < min_d)
-			{
-				min_d = d;
-				closest_probe_index = i;
-			}
-		}
-		vec3 Q1  = dFdx(FragPos);
-		vec3 Q2  = dFdy(FragPos);
-		vec2 st1 = dFdx(TexCoords);
-		vec2 st2 = dFdy(TexCoords);
-		tangent  = normalize(Q1*st2.t - Q2*st1.t);
-		vec3 sample_vectors[5] = {normal, tangent, -tangent, cross(tangent, normal), -cross(tangent, normal)};
-
-		irradiance = texture(light_probe_cubemaps, vec4(normalize(sample_vectors[0]), closest_probe_index)).rgb;
-		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[1]), closest_probe_index)).rgb;
-		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[2]), closest_probe_index)).rgb;
-		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[3]), closest_probe_index)).rgb;
-		irradiance += texture(light_probe_cubemaps, vec4(normalize(sample_vectors[4]), closest_probe_index)).rgb;
-
-		irradiance /= 5;
-
-		ambient = (kD * irradiance * albedo) * (1.0 - mor.g);
-	}
+	int closest_probe_index = FindClosestProbe(FragPos);
 	
-	//ambient = albedo;
+	irradiance = texture(diffuse_irradiance_light_probe_cubemaps, vec4(normal, closest_probe_index)).rgb;
 
+	vec3 diffuse = irradiance * albedo;
+
+	vec3 reflection = ParallaxCorrect(FragPos, -viewdir, normalize(reflect(-viewdir, normal)), light_probes[closest_probe_index].position);
+
+	const float MAX_REFLECTION_LOD = 6.0;
+	specularIrradiance = textureLod(specular_irradiance_light_probe_cubemaps, vec4(reflection, closest_probe_index), mor.z * MAX_REFLECTION_LOD).rgb;
+	vec2 brdfTexCoord = vec2(max(dot(normal, viewdir), 0.0), mor.z);
+
+	envBRDF = texture(brdfLUT, vec2(brdfTexCoord.x, brdfTexCoord.y)).rg;
+	specular = specularIrradiance * (kS  * envBRDF.x + envBRDF.y);
+	ambient = (kD * diffuse + specular) * (1.0 - mor.g);
+	
 
 	if(directional_lighting_enabled)
 	{
@@ -381,12 +403,12 @@ void main()
 
 		Lo = CalcDirectional(FragPos, viewdir, normal, mor, F0, albedo);
 		
-		color += max((ambient * 0.5) + (Lo * directional_shadow), vec3(0.0)) * ssao;
+		color += max((ambient * 1.0) + (Lo * directional_shadow), vec3(0.0)) * ssao;
 	}
 
 	for(int i=0; i<N_POINT; i++)
 	{
-		float point_shadow = 0.0;
+		float point_shadow = 1.0;
 		float bias = 0.01;
 		//bias = max(0.01 * (1 - dot(normal, normalize(lightdir))), 0.001);
 
@@ -399,6 +421,7 @@ void main()
 		
 		color += max(((ambient * (0.1) + Lo * (point_shadow))), vec3(0.0)) * ssao;
 	}
+	 
 
 	FragColor = color;
 	BrightColor = BloomThresholdFilter(color, 1.0);

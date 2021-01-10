@@ -33,6 +33,6 @@ void main()
 	}
 
 	FragColorOut = vec4(diffuse_color.rgb, texture(texture_specular, TexCoords).r);
-	FragNormalOut = TangentToWorldNormal(normalize(texture(texture_normal, TexCoords).xyz * 2.0 - 1.0));
+	FragNormalOut = TangentToWorldNormal(normalize(texture(texture_normal, TexCoords).xyz * 2.0 - 1.0)) * 0.5 + 0.5;
 	FragDepthOut = gl_FragCoord.z;
 }

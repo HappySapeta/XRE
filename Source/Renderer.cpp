@@ -11,6 +11,8 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <GLFW/glfw3.h>
+#include <stb_image.h>
+
 
 #include <logger.h>
 #include <shader.h>
@@ -60,7 +62,7 @@ Renderer::Renderer(unsigned int screen_width, unsigned int screen_height, const 
 	lighting_model = light_mode;
 	bg_color = background_color;
 
-	probeRenderer = new ProbeRenderer(16, 1024);
+	probeRenderer = new ProbeRenderer(16, 128, 1024);
 
 	if (rendering_pipeline == RENDER_PIPELINE::DEFERRED)
 	{
@@ -87,6 +89,29 @@ Renderer::Renderer(unsigned int screen_width, unsigned int screen_height, const 
 			deferredColorShader = new Shader(
 				"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_vertex_shader.vert",
 				"./Source/Resources/Shaders/PBR/deferred_pbr_color_fragment_shader.frag");
+
+			glGenTextures(1, &brdfLUT);
+
+			int texture_width, texture_height, num_channels;
+			const char* filepath = "./Source/Resources/Textures/ibl_brdf_lut.png";
+			unsigned char* data = stbi_load(filepath, &texture_width, &texture_height, &num_channels, 0);
+			if (data)
+			{
+				LOGGER->log(INFO, "LOAD TEXTURE", "Loading texture : " + std::string(filepath));
+
+				glBindTexture(GL_TEXTURE_2D, brdfLUT);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, texture_width, texture_height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			}
+			else
+			{
+				LOGGER->log(xre::ERROR, "LOAD TEXTURE", "Failed to create texture : " + std::string(filepath) + " : " + stbi_failure_reason());
+			}
+			stbi_image_free(data);
 		}
 	}
 	else if (rendering_pipeline == RENDER_PIPELINE::FORWARD)
@@ -139,6 +164,8 @@ Renderer::Renderer(unsigned int screen_width, unsigned int screen_height, const 
 	createSSAOData();
 	createBlurringFramebuffers();
 
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
 	draw_queue.reserve(50);
 	first_draw = true;
 	directional_light = NULL;
@@ -185,11 +212,11 @@ void Renderer::Render()
 		deferredFillPass();
 		//SSAOPass();
 		deferredColorShader->use();
-		deferredColorShader->setInt("use_ssao", 0);
+		deferredColorShader->setInt("use_ssao", 2);
 		deferredColorPass();
 
 		clearPrimaryBlurringFramebuffers();
-		blurPass(DeferredFinal_secondary_texture, SSAOFramebuffer_color, 4); // blooooom....
+		blurPass(DeferredFinal_secondary_texture, SSAOFramebuffer_color, 2); // blooooom....
 
 		SoftShadowPass(2);
 
@@ -221,13 +248,14 @@ void Renderer::Render()
 			lightmaps_drawn = true;
 			probeRenderer->GenerateLightProbes(glm::vec3(16, 4, 6), glm::vec3(1, -3.5, -0.5), glm::vec3(0.2, 0.2, 0.25));
 			probeRenderer->RenderProbes(
-				&draw_queue, &point_lights, 
+				&draw_queue, &point_lights,
 				directional_light, &directional_light_space_matrix,
-				&point_shadow_depth_storage[0], 
+				&point_shadow_depth_storage[0],
 				directional_shadow_depth_storage);
 			probeRenderer->SetShaderAttributes(deferredColorShader);
 
-			light_probe_cubemap_array = probeRenderer->light_probe_cubemap_array;
+			diffuse_irradiance_light_probe_cubemap_array = probeRenderer->light_probe_diffuse_irradiance_cubemap_array;
+			specular_irradiance_light_probe_cubemap_array = probeRenderer->light_probe_specular_irradiance_cubemap_array;
 
 			delete probeRenderer;
 		}
@@ -245,7 +273,7 @@ void Renderer::Render()
 			clearPointShadowFramebuffer();
 			pointShadowPass();
 		}
-		
+
 		if (directional_light && shadow_frames % 10 == 0)
 		{
 			clearDirectionalShadowMapFramebuffer();
@@ -405,7 +433,7 @@ void Renderer::createDeferredBuffers()
 	glGenTextures(1, &DeferredFinal_primary_texture);
 	glBindTexture(GL_TEXTURE_2D, DeferredFinal_primary_texture);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_FLOAT, NULL);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -418,7 +446,7 @@ void Renderer::createDeferredBuffers()
 	glGenTextures(1, &DeferredFinal_secondary_texture);
 	glBindTexture(GL_TEXTURE_2D, DeferredFinal_secondary_texture);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R3_G3_B2, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -492,7 +520,7 @@ void Renderer::createDeferredBuffers()
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, DeferredGbuffer_texture_mor, 0);
 	}
-	
+
 	// ----------------------------------
 
 	// ---------------------------------------------------------------------------------------------------------------------
@@ -583,6 +611,18 @@ void Renderer::deferredColorPass()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
+	deferredColorShader->setMat4("view", *camera_view_matrix);
+	deferredColorShader->setVec3("camera_pos", *camera_position);
+	deferredColorShader->setVec3("camera_look_direction", *camera_front);
+	deferredColorShader->setFloat("near", light_near_plane);
+	deferredColorShader->setFloat("far", light_far_plane);
+	deferredColorShader->setBool("directional_lighting_enabled", directional_light != NULL);
+	deferredColorShader->setInt("N_POINT", point_lights.size());
+	deferredColorShader->setMat4("inv_projection", glm::inverse(*camera_projection_matrix));
+	deferredColorShader->setMat4("inv_view", glm::inverse(*camera_view_matrix));
+	deferredColorShader->setFloat("positive_exponent", positive_exponent);
+	deferredColorShader->setFloat("negative_exponent", negative_exponent);
+
 	glActiveTexture(GL_TEXTURE0);
 	deferredColorShader->setInt("diffuse_texture", 0);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_color);
@@ -604,26 +644,22 @@ void Renderer::deferredColorPass()
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_texture_mor);
 
 	glActiveTexture(GL_TEXTURE5);
-	deferredColorShader->setInt("light_probe_cubemaps", 5);
-	glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, light_probe_cubemap_array);
+	deferredColorShader->setInt("diffuse_irradiance_light_probe_cubemaps", 5);
+	glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, diffuse_irradiance_light_probe_cubemap_array);
 
-	deferredColorShader->setMat4("view", *camera_view_matrix);
-	deferredColorShader->setVec3("camera_pos", *camera_position);
-	deferredColorShader->setVec3("camera_look_direction", *camera_front);
-	deferredColorShader->setFloat("near", light_near_plane);
-	deferredColorShader->setFloat("far", light_far_plane);
-	deferredColorShader->setBool("directional_lighting_enabled", directional_light != NULL);
-	deferredColorShader->setInt("N_POINT", point_lights.size());
-	deferredColorShader->setMat4("inv_projection", glm::inverse(*camera_projection_matrix));
-	deferredColorShader->setMat4("inv_view", glm::inverse(*camera_view_matrix));
-	deferredColorShader->setFloat("positive_exponent", positive_exponent);
-	deferredColorShader->setFloat("negative_exponent", negative_exponent);
+	glActiveTexture(GL_TEXTURE6);
+	deferredColorShader->setInt("specular_irradiance_light_probe_cubemaps", 6);
+	glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, specular_irradiance_light_probe_cubemap_array);
+
+	glActiveTexture(GL_TEXTURE7);
+	deferredColorShader->setInt("brdfLUT", 7);
+	glBindTexture(GL_TEXTURE_2D, brdfLUT);
 
 	if (directional_light != NULL)
 	{
-		glActiveTexture(GL_TEXTURE6);
+		glActiveTexture(GL_TEXTURE8);
 		glBindTexture(GL_TEXTURE_2D, DirectionalShadowBlurring_soft_shadow_textures[0]);
-		deferredColorShader->setInt("directional_shadow_depth_map", 6);
+		deferredColorShader->setInt("directional_shadow_depth_map", 8);
 
 		deferredColorShader->setMat4("directional_light_space_matrix", directional_light_space_matrix);
 	}
@@ -634,9 +670,9 @@ void Renderer::deferredColorPass()
 		ss.str("");
 		ss << '[' << i << ']';
 
-		glActiveTexture(GL_TEXTURE7 + i);
+		glActiveTexture(GL_TEXTURE9 + i);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, point_shadow_depth_storage[i]);
-		deferredColorShader->setInt("point_shadow_depth_map" + ss.str(), 7 + i);
+		deferredColorShader->setInt("point_shadow_depth_map" + ss.str(), 9 + i);
 	}
 
 	for (unsigned int l = 0; l < lights.size(); l++)

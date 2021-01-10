@@ -117,11 +117,13 @@
     <None Include="Source\Resources\Shaders\IBL\renderToCube_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\IBL\renderToCube_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\IBL\renderToCube_geometry_shader.geom" />
-    <None Include="Source\Resources\Shaders\IBL\lightmap_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\IBL\irradiance_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\IBL\forward_bphong_shadowless_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\IBL\forward_bphong_shadowless_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\PBR\deferred_pbr_color_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\DeferredAdditional\deferred_fill_bphong_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\irradiance_vertex_shader.vert" />
+    <None Include="Source\Resources\Shaders\IBL\reflection_map_fragment_shader.frag" />
+    <None Include="Source\Resources\Shaders\IBL\reflection_map_vertex_shader.vert" />
   </ItemGroup>
 </Project>

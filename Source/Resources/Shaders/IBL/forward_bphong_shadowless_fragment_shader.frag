@@ -1,6 +1,6 @@
 #version 440 core
 
-#define MAX_POINT_LIGHTS 3
+#define MAX_POINT_LIGHTS 4
 #define MAX_POINT_SHADOWS 3
 
 layout (location = 0) out vec3 FragColor;

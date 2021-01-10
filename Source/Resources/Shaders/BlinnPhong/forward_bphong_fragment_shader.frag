@@ -5,8 +5,8 @@
 #define MIN_VARIANCE 0.00001
 #define LIGHT_BLEED_REDUCTION_AMOUNT 1.0
 
-layout (location = 0) out vec4 FragColor;
-layout (location = 1) out vec4 BrightColor;
+layout (location = 0) out vec3 FragColor;
+layout (location = 1) out vec3 BrightColor;
 
 struct DirectionalLight {
 	vec3 direction;
@@ -163,7 +163,7 @@ vec3 CalcDirectional(vec3 diffuse_texture_color,vec3 specular_texture_color,vec3
 	float spec = pow(max(dot(normalize(normal), normalize(halfway)),0.0),shininess);
 	vec3 specular = directionalLight.color * spec * specular_texture_color; // specular
 
-	return ambient * 0.005 + diffuse * 0.8 * (directional_shadow) + specular * 1.0 * (directional_shadow);
+	return ambient * 0.0025 + diffuse * 0.8 * (directional_shadow) + specular * 1.0 * (directional_shadow);
 }
 
 
@@ -248,6 +248,6 @@ void main()
 	}
 
 	//color = tNormal;
-	FragColor = vec4(color , 1.0);
-	BrightColor = vec4(BloomThresholdFilter(color, 1.5), 1.0);
+	FragColor = color;
+	BrightColor = BloomThresholdFilter(color, 6.0);
 }

@@ -2,6 +2,8 @@
 #define LIGHTING_PROBES_H
 
 #include <glm/glm.hpp>
+#include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <shader.h>
 #include <renderer.h>
@@ -32,7 +34,8 @@ namespace xre
 
 		};
 
-		unsigned int lightmap_resolution;
+		unsigned int irradiance_map_resolution;
+		unsigned int reflection_map_resolution;
 		unsigned int rendering_resolution;
 		
 		std::vector<LightProbe> light_probes;
@@ -48,21 +51,48 @@ namespace xre
 		unsigned int cubeVAO;
 		unsigned int cubeVBO;
 
-		Shader* irradianceShader;
-		Shader* lightingShader;
+		Shader* diffuseIrradianceShader;
+		Shader* specularIrradianceShader;
+		Shader* renderingShader;
 
-		glm::vec3 render_views_eye_center[6];
-		glm::vec3 render_views_eye_up[6];
-		glm::mat4 convolution_views[6];
+		glm::mat4 captureProjection;
+		glm::mat4 captureViews[6] =
+		{
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+		};
+		glm::vec3 render_views_eye_center[6] =
+		{
+			glm::vec3(1.0f,  0.0f,  0.0f),
+			glm::vec3(-1.0f,  0.0f,  0.0f),
+			glm::vec3(0.0f,  1.0f,  0.0f),
+			glm::vec3(0.0f, -1.0f,  0.0f),
+			glm::vec3(0.0f,  0.0f,  1.0f),
+			glm::vec3(0.0f,  0.0f, -1.0f)
+		};
 
+		glm::vec3 render_views_eye_up[6] =
+		{
+			glm::vec3(0.0f, -1.0f,  0.0f),
+			glm::vec3(0.0f, -1.0f,  0.0f),
+			glm::vec3(0.0f,  0.0f,  1.0f),
+			glm::vec3(0.0f,  0.0f, -1.0f),
+			glm::vec3(0.0f, -1.0f,  0.0f),
+			glm::vec3(0.0f, -1.0f,  0.0f)
+		};
 
 #pragma endregion
 
 	public:
 
-		unsigned int light_probe_cubemap_array;
+		unsigned int light_probe_diffuse_irradiance_cubemap_array;
+		unsigned int light_probe_specular_irradiance_cubemap_array;
 
-		ProbeRenderer(unsigned int lightmap_resolution, unsigned int rendering_resolution);
+		ProbeRenderer(unsigned int irradiance_map_resolution, unsigned int relection_map_resolution, unsigned int rendering_resolution);
 
 		void RenderProbes(
 			std::vector<model_information>* draw_queue, 
