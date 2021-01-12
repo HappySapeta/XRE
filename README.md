@@ -16,7 +16,7 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
 * Advanced Lighting
    * Screen Space Ambient Occlusion (SSAO).
    * Exponential Variance Soft Shadows (currently works with directional lights only)
-   * Light Probes for Diffuse Irradiance.
+   * Light Probes for Diffuse Irradiance and Specular Reflections
 * Model and Texture Support
   * ASSIMP loader
   * Diffuse, Specular, Normal, Occlusion Textures Supported
@@ -30,14 +30,13 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
   * Thin G-Buffer (PBR - 120 bits, BlinnPhong - 112 bits)
 
 ## Work in Progress ##
-* Image Based Lighting
-
-## Coming Up ##
 * Basic Particle Simulation
 
-## Planned ##
+## Coming Up ##
 * Screen Space Reflections
-* Summed Area Variance Shadow Maps
+
+## Planned ##
+* Tiled Deferred Rendering
 
 Educational References :
 * https://learnopengl.com/
