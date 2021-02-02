@@ -30,13 +30,8 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
   * Thin G-Buffer (PBR - 120 bits, BlinnPhong - 112 bits)
 
 ## Work in Progress ##
-* Basic Particle Simulation
+* Point Soft Shadows
 
-## Coming Up ##
-* Screen Space Reflections
-
-## Planned ##
-* Tiled Deferred Rendering
 
 Educational References :
 * https://learnopengl.com/
