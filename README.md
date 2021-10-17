@@ -33,7 +33,7 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
 * Point Soft Shadows
 
 
-Educational References :
+Informational References :
 * https://learnopengl.com/
 * https://developer.nvidia.com/gpugems/gpugems/contributors
 
