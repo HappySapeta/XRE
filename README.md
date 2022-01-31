@@ -29,11 +29,7 @@ Experimental Realtime Rendering Engine made with OpenGL and C++.
   * Delayed Shadow Updates
   * Thin G-Buffer (PBR - 120 bits, BlinnPhong - 112 bits)
 
-## Work in Progress ##
-* Point Soft Shadows
-
-
-Informational References :
+References :
 * https://learnopengl.com/
 * https://developer.nvidia.com/gpugems/gpugems/contributors
 
