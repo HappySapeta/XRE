@@ -1,5 +1,5 @@
 # XRE
-Experimental Realtime Rendering Engine made with OpenGL and C++.
+An Experimental Realtime Rendering Engine made with OpenGL and C++.
 
 
 ![alt text](https://github.com/AnupamSahu/XRE/blob/main/Screenshot%20(17).png)
