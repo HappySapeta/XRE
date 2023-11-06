@@ -49,6 +49,7 @@
     <ClInclude Include="Include\xre_configuration.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="assimp-vc143-mtd.dll" />
     <None Include="Source\Resources\Shaders\BlinnPhong\deferred_bphong_color_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\BlinnPhong\deferred_bphong_color_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\BlinnPhong\forward_bphong_fragment_shader.frag" />
@@ -187,7 +188,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>D:\Work\XRE\XRE\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;assimp-vc142-mtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;assimp-vc143-mtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
