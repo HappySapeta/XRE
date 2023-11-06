@@ -348,3 +348,9 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# Don't ignore .obj model files.
+!Source/**/*.obj
+
+# Rider
+.idea/

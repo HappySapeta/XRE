@@ -126,4 +126,7 @@
     <None Include="Source\Resources\Shaders\IBL\reflection_map_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\IBL\reflection_map_vertex_shader.vert" />
   </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="assimp-vc143-mtd.dll" />
+  </ItemGroup>
 </Project>
