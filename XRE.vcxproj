@@ -49,7 +49,9 @@
     <ClInclude Include="Include\xre_configuration.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assimp-vc143-mtd.dll" />
+    <CopyFileToFolders Include="assimp-vc143-mtd.dll">
+      <FileType>Document</FileType>
+    </CopyFileToFolders>
     <None Include="Source\Resources\Shaders\BlinnPhong\deferred_bphong_color_fragment_shader.frag" />
     <None Include="Source\Resources\Shaders\BlinnPhong\deferred_bphong_color_vertex_shader.vert" />
     <None Include="Source\Resources\Shaders\BlinnPhong\forward_bphong_fragment_shader.frag" />
