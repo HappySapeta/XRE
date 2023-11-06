@@ -33,7 +33,6 @@
     <ClCompile Include="Source\XRE.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\Users\ROG\source\repos\opengl\include\stb_image.h" />
     <ClInclude Include="Include\camera.h" />
     <ClInclude Include="Include\CullingTester.h" />
     <ClInclude Include="Include\ibl.h" />
