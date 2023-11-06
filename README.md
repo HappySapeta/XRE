@@ -2,8 +2,7 @@
 An Experimental Realtime Rendering Engine made with OpenGL and C++.
 
 
-![alt text](https://github.com/AnupamSahu/XRE/blob/main/Screenshot%20(17).png)
-![alt text](https://github.com/AnupamSahu/XRE/blob/main/Sponza_sun.png)
+![XRE Demo](https://github.com/AnupamSahu/XRE/blob/main/Extra/XRE%20Demo.gif)
 
 # Feature List
 ## Existing ##
