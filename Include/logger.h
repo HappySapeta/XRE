@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <memory>
 
 namespace xre
 {
@@ -24,7 +25,7 @@ namespace xre
 	class LogModule
 	{
 	private:
-		static LogModule* logger_instance;
+		inline static std::unique_ptr<LogModule> logger_instance = NULL;
 
 		int m_log_level;
 		int m_log_level_filter;

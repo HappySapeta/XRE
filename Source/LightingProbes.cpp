@@ -43,15 +43,15 @@ xre::ProbeRenderer::ProbeRenderer(unsigned int irradiance_map_resolution, unsign
 		init_success = false;
 	}
 
-	diffuseIrradianceShader = new Shader(
+	diffuseIrradianceShader = Shader(
 		"./Source/Resources/Shaders/IBL/irradiance_vertex_shader.vert",
 		"./Source/Resources/Shaders/IBL/irradiance_fragment_shader.frag");
 
-	specularIrradianceShader = new Shader(
+	specularIrradianceShader = Shader(
 		"./Source/Resources/Shaders/IBL/reflection_map_vertex_shader.vert",
 		"./Source/Resources/Shaders/IBL/reflection_map_fragment_shader.frag");
 
-	renderingShader = new Shader(
+	renderingShader = Shader(
 		"./Source/Resources/Shaders/IBL/forward_bphong_shadowless_vertex_shader.vert",
 		"./Source/Resources/Shaders/IBL/forward_bphong_shadowless_fragment_shader.frag"
 	);
@@ -233,26 +233,26 @@ void xre::ProbeRenderer::RenderProbes(
 
 	glm::mat4 projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
-	renderingShader->use();
+	renderingShader.use();
 
-	renderingShader->setInt("N_POINT", point_lights->size());
-	renderingShader->setBool("directional_lighting_enabled", directional_light != NULL);
-	renderingShader->setMat4("projection", projection);
-	renderingShader->setFloat("shininess", 32);
-	renderingShader->setFloat("near", 0.1f);
-	renderingShader->setFloat("far", 10.0f);
+	renderingShader.setInt("N_POINT", point_lights->size());
+	renderingShader.setBool("directional_lighting_enabled", directional_light != NULL);
+	renderingShader.setMat4("projection", projection);
+	renderingShader.setFloat("shininess", 32);
+	renderingShader.setFloat("near", 0.1f);
+	renderingShader.setFloat("far", 10.0f);
 
 	std::stringstream ss;
 
 	for (unsigned int p = 0; p < light_probes.size(); p++)  //optimize state changes.
 	{
-		renderingShader->setVec3("camera_pos", light_probes[p].position);
+		renderingShader.setVec3("camera_pos", light_probes[p].position);
 
 		for (unsigned int s = 0; s < 6; s++)
 		{
 			glm::mat4 view = glm::lookAt(light_probes[p].position, light_probes[p].position + render_views_eye_center[s], render_views_eye_up[s]);
 
-			renderingShader->setMat4("view", view);
+			renderingShader.setMat4("view", view);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + s, light_probes[p].render_texture, 0);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -263,13 +263,13 @@ void xre::ProbeRenderer::RenderProbes(
 					continue;
 				}
 
-				renderingShader->setMat4("model", *draw_queue->at(d).object_model_matrix);
+				renderingShader.setMat4("model", *draw_queue->at(d).object_model_matrix);
 
 				unsigned int j;
 				for (j = 0; j < draw_queue->at(d).object_textures->size(); j++)
 				{
 					glActiveTexture(GL_TEXTURE0 + j);
-					renderingShader->setInt(draw_queue->at(d).object_textures->at(j).type, j);
+					renderingShader.setInt(draw_queue->at(d).object_textures->at(j).type, j);
 					glBindTexture(GL_TEXTURE_2D, draw_queue->at(d).object_textures->at(j).id);
 				}
 
@@ -280,7 +280,7 @@ void xre::ProbeRenderer::RenderProbes(
 						ss.str("");
 						ss << "[" << k - j << "]";
 						glActiveTexture(GL_TEXTURE0 + k);
-						renderingShader->setInt("point_shadow_depth_map" + ss.str(), k);
+						renderingShader.setInt("point_shadow_depth_map" + ss.str(), k);
 						glBindTexture(GL_TEXTURE_CUBE_MAP, point_shadow_depth_storage[k - j]);
 					}
 				}
@@ -289,21 +289,21 @@ void xre::ProbeRenderer::RenderProbes(
 
 				if (directional_light != NULL)
 				{
-					renderingShader->setMat4("directional_light_space_matrix", *directional_light_space_matrix);
+					renderingShader.setMat4("directional_light_space_matrix", *directional_light_space_matrix);
 
 					glActiveTexture(GL_TEXTURE0 + j);
-					renderingShader->setInt("directional_shadow_depth_map", j);
+					renderingShader.setInt("directional_shadow_depth_map", j);
 					glBindTexture(GL_TEXTURE_2D, directional_shadow_depth_storage);
 				}
 
 				for (unsigned int l = 0; l < point_lights->size(); l++)
 				{
-					point_lights->at(l)->SetShaderAttrib(point_lights->at(l)->m_name, *renderingShader);
+					point_lights->at(l)->SetShaderAttrib(point_lights->at(l)->m_name, renderingShader);
 				}
 
 				if (directional_light)
 				{
-					directional_light->SetShaderAttrib(directional_light->m_name, *renderingShader);
+					directional_light->SetShaderAttrib(directional_light->m_name, renderingShader);
 				}
 
 				glBindVertexArray(draw_queue->at(d).object_VAO);
@@ -319,7 +319,7 @@ void xre::ProbeRenderer::RenderProbes(
 
 #pragma region Diffuse Irradiance Convolution Pass
 
-	diffuseIrradianceShader->use();
+	diffuseIrradianceShader.use();
 	glBindFramebuffer(GL_FRAMEBUFFER, probeFBO);
 	glBindRenderbuffer(GL_RENDERBUFFER, probeRBO);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, irradiance_map_resolution, irradiance_map_resolution);
@@ -328,17 +328,17 @@ void xre::ProbeRenderer::RenderProbes(
 	glViewport(0, 0, irradiance_map_resolution, irradiance_map_resolution);
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
-	diffuseIrradianceShader->setMat4("projection", projection);
+	diffuseIrradianceShader.setMat4("projection", projection);
 
 	for (unsigned int p = 0; p < light_probes.size(); p++)
 	{
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, light_probes[p].render_texture);
-		diffuseIrradianceShader->setInt("envCubemap", 0);
+		diffuseIrradianceShader.setInt("envCubemap", 0);
 
 		for (unsigned int s = 0; s < 6; s++)
 		{
-			diffuseIrradianceShader->setMat4("view", captureViews[s]);
+			diffuseIrradianceShader.setMat4("view", captureViews[s]);
 			glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, light_probe_diffuse_irradiance_cubemap_array, 0, p * 6 + s);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -355,11 +355,11 @@ void xre::ProbeRenderer::RenderProbes(
 
 #pragma region Specular Irradiance Convolution Pass
 
-	specularIrradianceShader->use();
+	specularIrradianceShader.use();
 	glBindFramebuffer(GL_FRAMEBUFFER, probeFBO);
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
-	specularIrradianceShader->setMat4("projection", projection);
+	specularIrradianceShader.setMat4("projection", projection);
 
 	unsigned int maxMipMapLevels = 7;
 
@@ -367,7 +367,7 @@ void xre::ProbeRenderer::RenderProbes(
 	{
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, light_probes[p].render_texture);
-		specularIrradianceShader->setInt("envCubemap", 0);
+		specularIrradianceShader.setInt("envCubemap", 0);
 
 		for (unsigned int mip = 0; mip < maxMipMapLevels; mip++)
 		{
@@ -380,11 +380,11 @@ void xre::ProbeRenderer::RenderProbes(
 			glViewport(0, 0, mipWidth, mipHeight);
 
 			float roughness = (float)mip / (float)(maxMipMapLevels - 1);
-			specularIrradianceShader->setFloat("roughness", roughness);
+			specularIrradianceShader.setFloat("roughness", roughness);
 
 			for (unsigned int s = 0; s < 6; s++)
 			{
-				specularIrradianceShader->setMat4("view", captureViews[s]);
+				specularIrradianceShader.setMat4("view", captureViews[s]);
 				glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, light_probe_specular_irradiance_cubemap_array, mip, p * 6 + s);
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

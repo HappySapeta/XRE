@@ -17,6 +17,8 @@ namespace xre
 	public:
 		unsigned int shader_program_id;
 
+		Shader() = default;
+		
 		Shader(const char* vertex_shader_path, const char* fragment_shader_path, const char* geometry_shader_path = NULL);
 
 		// Set Uniform Functions

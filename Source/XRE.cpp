@@ -117,16 +117,16 @@ int main()
 		| aiProcess_OptimizeGraph
 		| aiProcess_GenBoundingBoxes
 		| aiProcess_FlipUVs);
-	xre::Shader* sponza_shader = NULL;
+	
+	std::unique_ptr<xre::Shader> sponza_shader = std::make_unique<xre::Shader>
+	(
+		"./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
+		"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag"
+	);
+	
 	sponza.translate(glm::vec3(0.0, 0.0, 0.0));
 	sponza.scale(glm::vec3(0.01f));
 	sponza.dynamic = false;
-
-	if (rendering_pipeline == xre::RENDER_PIPELINE::FORWARD)
-	{
-		sponza_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
-			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
-	}
 
 	// Additional data
 	std::chrono::duration<float> delta_time;

@@ -1,14 +1,13 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#include <glad/glad.h>
 #include <glm/glm.hpp>
 
 
 #include <mesh.h>
 #include <shader.h>
 #include <lights.h>
-#include <xre_configuration.h>
+
 
 #include <string>
 #include <vector>
@@ -101,8 +100,8 @@ namespace xre
 #pragma endregion
 
 #pragma region Rendering Pipeline Data
-
-		static Renderer* instance;
+		
+		inline static std::unique_ptr<Renderer> instance = NULL;
 
 		RENDER_PIPELINE rendering_pipeline;
 		LIGHTING_MODE lighting_model;
@@ -185,15 +184,15 @@ namespace xre
 
 #pragma region Shaders
 
-		Shader* deferredFillShader;
-		Shader* deferredColorShader;
-		Shader* SSAOShader;
-		Shader* quadShader;
-		Shader* depthShader_point;
-		Shader* depthShader_directional;
-		Shader* bloomSSAO_blur_Shader;
-		Shader* directional_shadow_blur_Shader;
-		Shader* debugShader;
+		Shader deferredFillShader;
+		Shader deferredColorShader;
+		Shader SSAOShader;
+		Shader quadShader;
+		Shader depthShader_point;
+		Shader depthShader_directional;
+		Shader bloomSSAO_blur_Shader;
+		Shader directional_shadow_blur_Shader;
+		Shader debugShader;
 
 #pragma endregion
 
@@ -247,7 +246,7 @@ namespace xre
 
 		Renderer(Renderer& other) = delete;
 		Renderer() = delete;
-
+		
 		void pushToDrawQueue(unsigned int vertex_array_object, unsigned int indices_size, const xre::Shader& object_shader, const glm::mat4& model_matrix, std::vector<Texture>* object_textures, std::vector<std::string>* texture_types, std::string model_name, bool isdynamic, bool* setup_success, BoundingVolume aabb);
 		void Render();
 		void StartOptimizationThreads();

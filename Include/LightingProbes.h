@@ -51,9 +51,9 @@ namespace xre
 		unsigned int cubeVAO;
 		unsigned int cubeVBO;
 
-		Shader* diffuseIrradianceShader;
-		Shader* specularIrradianceShader;
-		Shader* renderingShader;
+		Shader diffuseIrradianceShader;
+		Shader specularIrradianceShader;
+		Shader renderingShader;
 
 		glm::mat4 captureProjection;
 		glm::mat4 captureViews[6] =

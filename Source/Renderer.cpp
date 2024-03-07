@@ -1,6 +1,5 @@
 #include <renderer.h>
 
-#include <iostream>
 #include <string>
 #include <sstream>
 #include <random>
@@ -9,7 +8,6 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/rotate_vector.hpp>
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
 
@@ -20,7 +18,6 @@
 #include <mesh.h>
 #include <LightingProbes.h>
 #include <CullingTester.h>
-#include <LightingProbes.h>
 #include <xre_configuration.h>
 
 using namespace xre;
@@ -28,26 +25,36 @@ using namespace xre;
 const char* GLErrorToString(GLenum err);
 
 static LogModule* LOGGER = LogModule::getLoggerInstance();
-ProbeRenderer* probeRenderer;
-Renderer* Renderer::instance = NULL;
 
 Renderer* Renderer::renderer()
 {
-	if (instance == NULL)
+	if (!instance)
 	{
 		LOGGER->log(ERROR, "Render System : renderer", "No renderer instance available. Create one first!");
 	}
-	return instance;
+	return instance.get();
 }
 
 // SHOULD BE CALLED ONLY ONCE, BEFORE ENTERING RENDER LOOP.
 Renderer* Renderer::renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode)
 {
-	if (instance == NULL)
+	if (!instance)
 	{
-		instance = new Renderer(screen_width, screen_height, background_color, lights_near_plane_p, lights_far_plane_p, shadow_map_width_p, shadow_map_height_p, render_pipeline, light_mode);
+		instance = std::unique_ptr<Renderer>
+		(
+			new Renderer
+			(
+				screen_width,
+				screen_height,
+				background_color,
+				lights_near_plane_p, lights_far_plane_p,
+				shadow_map_width_p, shadow_map_height_p,
+				render_pipeline,
+				light_mode
+			)
+		);
 	}
-	return instance;
+	return instance.get();
 }
 
 Renderer::Renderer(unsigned int screen_width, unsigned int screen_height, const glm::vec4& background_color, float lights_near_plane_p, float lights_far_plane_p, int shadow_map_width_p, int shadow_map_height_p, RENDER_PIPELINE render_pipeline, LIGHTING_MODE light_mode)
@@ -62,8 +69,6 @@ Renderer::Renderer(unsigned int screen_width, unsigned int screen_height, const 
 	lighting_model = light_mode;
 	bg_color = background_color;
 
-	probeRenderer = new ProbeRenderer(16, 128, 1024);
-
 	if (rendering_pipeline == RENDER_PIPELINE::DEFERRED)
 	{
 		createDeferredBuffers();
@@ -72,21 +77,21 @@ Renderer::Renderer(unsigned int screen_width, unsigned int screen_height, const 
 
 		if (lighting_model == LIGHTING_MODE::BLINNPHONG)
 		{
-			deferredFillShader = new Shader(
+			deferredFillShader = Shader(
 				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_vertex_shader.vert",
 				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_bphong_fragment_shader.frag");
 
-			deferredColorShader = new Shader(
+			deferredColorShader = Shader(
 				"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_vertex_shader.vert",
 				"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_fragment_shader.frag");
 		}
 		else
 		{
-			deferredFillShader = new Shader(
+			deferredFillShader = Shader(
 				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_vertex_shader.vert",
 				"./Source/Resources/Shaders/DeferredAdditional/deferred_fill_pbr_fragment_shader.frag");
 
-			deferredColorShader = new Shader(
+			deferredColorShader = Shader(
 				"./Source/Resources/Shaders/BlinnPhong/deferred_bphong_color_vertex_shader.vert",
 				"./Source/Resources/Shaders/PBR/deferred_pbr_color_fragment_shader.frag");
 
@@ -123,37 +128,37 @@ Renderer::Renderer(unsigned int screen_width, unsigned int screen_height, const 
 
 #pragma region Shader Initialization
 
-	quadShader = new Shader
+	quadShader = Shader
 	(
 		"./Source/Resources/Shaders/Quad/quad_vertex_shader.vert",
 		"./Source/Resources/Shaders/Quad/quad_fragment_shader.frag"
 	);
 
-	depthShader_point = new Shader
+	depthShader_point = Shader
 	(
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_vertex_shader.vert",
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_point_fragment_shader.frag",
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_geometry_shader.geom");
 
-	depthShader_directional = new Shader
+	depthShader_directional = Shader
 	(
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_vertex_shader.vert",
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_directional_fragment_shader.frag",
 		"./Source/Resources/Shaders/ShadowMapping/depth_map_geometry_shader.geom");
 
-	bloomSSAO_blur_Shader = new Shader
+	bloomSSAO_blur_Shader = Shader
 	(
 		"./Source/Resources/Shaders/Quad/quad_vertex_shader.vert",
 		"./Source/Resources/Shaders/Blur/bloom_ssao_blur_shader.frag"
 	);
 
-	directional_shadow_blur_Shader = new Shader
+	directional_shadow_blur_Shader = Shader
 	(
 		"./Source/Resources/Shaders/Quad/quad_vertex_shader.vert",
 		"./Source/Resources/Shaders/Blur/directional_soft_shadow_shadow.frag"
 	);
 
-	SSAOShader = new Shader(
+	SSAOShader = Shader(
 		"./Source/Resources/Shaders/SSAO/ssao_vertex_shader.vert",
 		"./Source/Resources/Shaders/SSAO/ssao_fragment_shader.frag"
 	);
@@ -211,8 +216,8 @@ void Renderer::Render()
 		clearDeferredBuffers();
 		deferredFillPass();
 		//SSAOPass();
-		deferredColorShader->use();
-		deferredColorShader->setInt("use_ssao", 2);
+		deferredColorShader.use();
+		deferredColorShader.setInt("use_ssao", 2);
 		deferredColorPass();
 
 		clearPrimaryBlurringFramebuffers();
@@ -227,14 +232,14 @@ void Renderer::Render()
 		glBindVertexArray(quadVAO);
 		glDisable(GL_DEPTH_TEST);
 
-		quadShader->use();
+		quadShader.use();
 
 		glActiveTexture(GL_TEXTURE0);
-		quadShader->setInt("screenTexture", 0);
+		quadShader.setInt("screenTexture", 0);
 		glBindTexture(GL_TEXTURE_2D, DeferredFinal_primary_texture);
 
 		glActiveTexture(GL_TEXTURE1);
-		quadShader->setInt("bloomTexture", 1);
+		quadShader.setInt("bloomTexture", 1);
 		glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_bloom_textures[0]);
 
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -245,19 +250,18 @@ void Renderer::Render()
 
 		if (!lightmaps_drawn)
 		{
+			ProbeRenderer probeRenderer = ProbeRenderer(16, 128, 1024);
 			lightmaps_drawn = true;
-			probeRenderer->GenerateLightProbes(glm::vec3(16, 4, 6), glm::vec3(1, -3.5, -0.5), glm::vec3(0.2, 0.2, 0.25));
-			probeRenderer->RenderProbes(
+			probeRenderer.GenerateLightProbes(glm::vec3(16, 4, 6), glm::vec3(1, -3.5, -0.5), glm::vec3(0.2, 0.2, 0.25));
+			probeRenderer.RenderProbes(
 				&draw_queue, &point_lights,
 				directional_light, &directional_light_space_matrix,
 				&point_shadow_depth_storage[0],
 				directional_shadow_depth_storage);
-			probeRenderer->SetShaderAttributes(deferredColorShader);
+			probeRenderer.SetShaderAttributes(&deferredColorShader);
 
-			diffuse_irradiance_light_probe_cubemap_array = probeRenderer->light_probe_diffuse_irradiance_cubemap_array;
-			specular_irradiance_light_probe_cubemap_array = probeRenderer->light_probe_specular_irradiance_cubemap_array;
-
-			delete probeRenderer;
+			diffuse_irradiance_light_probe_cubemap_array = probeRenderer.light_probe_diffuse_irradiance_cubemap_array;
+			specular_irradiance_light_probe_cubemap_array = probeRenderer.light_probe_specular_irradiance_cubemap_array;
 		}
 	}
 	else
@@ -296,14 +300,14 @@ void Renderer::Render()
 		glBindVertexArray(quadVAO);
 		glDisable(GL_DEPTH_TEST);
 
-		quadShader->use();
+		quadShader.use();
 
 		glActiveTexture(GL_TEXTURE0);
-		quadShader->setInt("screenTexture", 0);
+		quadShader.setInt("screenTexture", 0);
 		glBindTexture(GL_TEXTURE_2D, ForwardFramebuffer_primary_texture);
 
 		glActiveTexture(GL_TEXTURE1);
-		quadShader->setInt("bloomTexture", 1);
+		quadShader.setInt("bloomTexture", 1);
 		glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_bloom_textures[0]);
 
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -567,10 +571,10 @@ void Renderer::deferredFillPass()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
-	deferredFillShader->use();
-	deferredFillShader->setMat4("view", *camera_view_matrix);
-	deferredFillShader->setMat4("projection", *camera_projection_matrix);
-	deferredFillShader->setVec3("camera_position", *camera_position);
+	deferredFillShader.use();
+	deferredFillShader.setMat4("view", *camera_view_matrix);
+	deferredFillShader.setMat4("projection", *camera_projection_matrix);
+	deferredFillShader.setVec3("camera_position", *camera_position);
 
 
 	for (unsigned int i = 0; i < draw_queue.size(); i++)
@@ -583,11 +587,11 @@ void Renderer::deferredFillPass()
 		for (unsigned int j = 0; j < draw_queue[i].object_textures->size(); j++)
 		{
 			glActiveTexture(GL_TEXTURE0 + j);
-			deferredFillShader->setInt(draw_queue[i].object_textures->at(j).type, j);
+			deferredFillShader.setInt(draw_queue[i].object_textures->at(j).type, j);
 			glBindTexture(GL_TEXTURE_2D, draw_queue[i].object_textures->at(j).id);
 		}
 
-		deferredFillShader->setMat4("model", *draw_queue[i].object_model_matrix);
+		deferredFillShader.setMat4("model", *draw_queue[i].object_model_matrix);
 
 		glBindVertexArray(draw_queue[i].object_VAO);
 		glDrawElements(GL_TRIANGLES, draw_queue[i].indices_size, GL_UNSIGNED_INT, 0);
@@ -611,57 +615,57 @@ void Renderer::deferredColorPass()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
-	deferredColorShader->setMat4("view", *camera_view_matrix);
-	deferredColorShader->setVec3("camera_pos", *camera_position);
-	deferredColorShader->setVec3("camera_look_direction", *camera_front);
-	deferredColorShader->setFloat("near", light_near_plane);
-	deferredColorShader->setFloat("far", light_far_plane);
-	deferredColorShader->setBool("directional_lighting_enabled", directional_light != NULL);
-	deferredColorShader->setInt("N_POINT", point_lights.size());
-	deferredColorShader->setMat4("inv_projection", glm::inverse(*camera_projection_matrix));
-	deferredColorShader->setMat4("inv_view", glm::inverse(*camera_view_matrix));
-	deferredColorShader->setFloat("positive_exponent", positive_exponent);
-	deferredColorShader->setFloat("negative_exponent", negative_exponent);
+	deferredColorShader.setMat4("view", *camera_view_matrix);
+	deferredColorShader.setVec3("camera_pos", *camera_position);
+	deferredColorShader.setVec3("camera_look_direction", *camera_front);
+	deferredColorShader.setFloat("near", light_near_plane);
+	deferredColorShader.setFloat("far", light_far_plane);
+	deferredColorShader.setBool("directional_lighting_enabled", directional_light != NULL);
+	deferredColorShader.setInt("N_POINT", point_lights.size());
+	deferredColorShader.setMat4("inv_projection", glm::inverse(*camera_projection_matrix));
+	deferredColorShader.setMat4("inv_view", glm::inverse(*camera_view_matrix));
+	deferredColorShader.setFloat("positive_exponent", positive_exponent);
+	deferredColorShader.setFloat("negative_exponent", negative_exponent);
 
 	glActiveTexture(GL_TEXTURE0);
-	deferredColorShader->setInt("diffuse_texture", 0);
+	deferredColorShader.setInt("diffuse_texture", 0);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_color);
 
 	glActiveTexture(GL_TEXTURE1);
-	deferredColorShader->setInt("normal_texture", 1);
+	deferredColorShader.setInt("normal_texture", 1);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_normal);
 
 	glActiveTexture(GL_TEXTURE2);
-	deferredColorShader->setInt("depth_texture", 2);
+	deferredColorShader.setInt("depth_texture", 2);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_depth);
 
 	glActiveTexture(GL_TEXTURE3);
-	deferredColorShader->setInt("ssao_texture", 3);
+	deferredColorShader.setInt("ssao_texture", 3);
 	glBindTexture(GL_TEXTURE_2D, PrimaryBlurringFramebuffer_ssao_textures[0]);
 
 	glActiveTexture(GL_TEXTURE4);
-	deferredColorShader->setInt("mor_texture", 4);
+	deferredColorShader.setInt("mor_texture", 4);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_texture_mor);
 
 	glActiveTexture(GL_TEXTURE5);
-	deferredColorShader->setInt("diffuse_irradiance_light_probe_cubemaps", 5);
+	deferredColorShader.setInt("diffuse_irradiance_light_probe_cubemaps", 5);
 	glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, diffuse_irradiance_light_probe_cubemap_array);
 
 	glActiveTexture(GL_TEXTURE6);
-	deferredColorShader->setInt("specular_irradiance_light_probe_cubemaps", 6);
+	deferredColorShader.setInt("specular_irradiance_light_probe_cubemaps", 6);
 	glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, specular_irradiance_light_probe_cubemap_array);
 
 	glActiveTexture(GL_TEXTURE7);
-	deferredColorShader->setInt("brdfLUT", 7);
+	deferredColorShader.setInt("brdfLUT", 7);
 	glBindTexture(GL_TEXTURE_2D, brdfLUT);
 
 	if (directional_light != NULL)
 	{
 		glActiveTexture(GL_TEXTURE8);
 		glBindTexture(GL_TEXTURE_2D, DirectionalShadowBlurring_soft_shadow_textures[0]);
-		deferredColorShader->setInt("directional_shadow_depth_map", 8);
+		deferredColorShader.setInt("directional_shadow_depth_map", 8);
 
-		deferredColorShader->setMat4("directional_light_space_matrix", directional_light_space_matrix);
+		deferredColorShader.setMat4("directional_light_space_matrix", directional_light_space_matrix);
 	}
 
 	std::stringstream ss;
@@ -672,12 +676,12 @@ void Renderer::deferredColorPass()
 
 		glActiveTexture(GL_TEXTURE9 + i);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, point_shadow_depth_storage[i]);
-		deferredColorShader->setInt("point_shadow_depth_map" + ss.str(), 9 + i);
+		deferredColorShader.setInt("point_shadow_depth_map" + ss.str(), 9 + i);
 	}
 
 	for (unsigned int l = 0; l < lights.size(); l++)
 	{
-		lights[l]->SetShaderAttrib(lights[l]->m_name, *deferredColorShader);
+		lights[l]->SetShaderAttrib(lights[l]->m_name, deferredColorShader);
 	}
 
 	glBindVertexArray(quadVAO);
@@ -695,27 +699,27 @@ void Renderer::directionalShadowPass()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
-	depthShader_directional->use();
-	depthShader_directional->setInt("is_point", 0);
+	depthShader_directional.use();
+	depthShader_directional.setInt("is_point", 0);
 
 	if (directional_light != NULL)
 	{
 		glViewport(0, 0, shadow_map_width * 4, 4 * shadow_map_height);
 		glBindFramebuffer(GL_FRAMEBUFFER, directional_shadow_framebuffer);
-		depthShader_directional->setInt("faces", 1);
+		depthShader_directional.setInt("faces", 1);
 
 		createDirectionalLightMatrix(directional_light->m_position, directional_light->m_direction);
 
-		depthShader_directional->setMat4("light_space_matrix_cube[0]", directional_light_space_matrix);
-		depthShader_directional->setVec3("lightPos", directional_light->m_position);
-		depthShader_directional->setFloat("farPlane", light_far_plane);
-		depthShader_directional->setMat4("directional_light_space_matrix", directional_light_space_matrix);
-		depthShader_directional->setFloat("positive_exponent", positive_exponent);
-		depthShader_directional->setFloat("negative_exponent", negative_exponent);
+		depthShader_directional.setMat4("light_space_matrix_cube[0]", directional_light_space_matrix);
+		depthShader_directional.setVec3("lightPos", directional_light->m_position);
+		depthShader_directional.setFloat("farPlane", light_far_plane);
+		depthShader_directional.setMat4("directional_light_space_matrix", directional_light_space_matrix);
+		depthShader_directional.setFloat("positive_exponent", positive_exponent);
+		depthShader_directional.setFloat("negative_exponent", negative_exponent);
 
 		for (unsigned int i = 0; i < draw_queue.size(); i++)
 		{
-			depthShader_directional->setMat4("model", *draw_queue[i].object_model_matrix);
+			depthShader_directional.setMat4("model", *draw_queue[i].object_model_matrix);
 			glBindVertexArray(draw_queue[i].object_VAO);
 			glDrawElements(GL_TRIANGLES, draw_queue[i].indices_size, GL_UNSIGNED_INT, 0);
 			glBindVertexArray(0);
@@ -735,29 +739,29 @@ void Renderer::pointShadowPass()
 	glCullFace(GL_FRONT);
 	glViewport(0, 0, shadow_map_width, shadow_map_height);
 
-	depthShader_point->use();
-	depthShader_point->setInt("faces", 6);
-	depthShader_point->setInt("is_point", 1);
+	depthShader_point.use();
+	depthShader_point.setInt("faces", 6);
+	depthShader_point.setInt("is_point", 1);
 
 	for (unsigned int k = 0; k < XRE_MAX_POINT_SHADOW_MAPS; k++)
 	{
 		createPointLightMatrices(point_lights[k]->m_position, k);
 
-		depthShader_point->setMat4("light_space_matrix_cube[0]", point_light_space_matrix_cube_array[k].point_light_space_matrix_0);
-		depthShader_point->setMat4("light_space_matrix_cube[1]", point_light_space_matrix_cube_array[k].point_light_space_matrix_1);
-		depthShader_point->setMat4("light_space_matrix_cube[2]", point_light_space_matrix_cube_array[k].point_light_space_matrix_2);
-		depthShader_point->setMat4("light_space_matrix_cube[3]", point_light_space_matrix_cube_array[k].point_light_space_matrix_3);
-		depthShader_point->setMat4("light_space_matrix_cube[4]", point_light_space_matrix_cube_array[k].point_light_space_matrix_4);
-		depthShader_point->setMat4("light_space_matrix_cube[5]", point_light_space_matrix_cube_array[k].point_light_space_matrix_5);
+		depthShader_point.setMat4("light_space_matrix_cube[0]", point_light_space_matrix_cube_array[k].point_light_space_matrix_0);
+		depthShader_point.setMat4("light_space_matrix_cube[1]", point_light_space_matrix_cube_array[k].point_light_space_matrix_1);
+		depthShader_point.setMat4("light_space_matrix_cube[2]", point_light_space_matrix_cube_array[k].point_light_space_matrix_2);
+		depthShader_point.setMat4("light_space_matrix_cube[3]", point_light_space_matrix_cube_array[k].point_light_space_matrix_3);
+		depthShader_point.setMat4("light_space_matrix_cube[4]", point_light_space_matrix_cube_array[k].point_light_space_matrix_4);
+		depthShader_point.setMat4("light_space_matrix_cube[5]", point_light_space_matrix_cube_array[k].point_light_space_matrix_5);
 
-		depthShader_point->setVec3("lightPos", point_lights[k]->m_position);
-		depthShader_point->setFloat("farPlane", light_far_plane);
+		depthShader_point.setVec3("lightPos", point_lights[k]->m_position);
+		depthShader_point.setFloat("farPlane", light_far_plane);
 
 		glViewport(0, 0, shadow_map_width, shadow_map_height);
 		glBindFramebuffer(GL_FRAMEBUFFER, point_shadow_framebuffer[k]);
 		glClear(GL_DEPTH_BUFFER_BIT);
 
-		depthShader_point->setInt("mode", 0); // 0 for static
+		depthShader_point.setInt("mode", 0); // 0 for static
 		glColorMask(true, true, false, false);
 		if (first_draw)
 		{
@@ -768,7 +772,7 @@ void Renderer::pointShadowPass()
 					continue;
 				}
 
-				depthShader_point->setMat4("model", *draw_queue[i].object_model_matrix);
+				depthShader_point.setMat4("model", *draw_queue[i].object_model_matrix);
 				glBindVertexArray(draw_queue[i].object_VAO);
 				glDrawElements(GL_TRIANGLES, draw_queue[i].indices_size, GL_UNSIGNED_INT, 0);
 				glBindVertexArray(0);
@@ -776,7 +780,7 @@ void Renderer::pointShadowPass()
 
 		}
 
-		depthShader_point->setInt("mode", 1); // 1 for dynamic
+		depthShader_point.setInt("mode", 1); // 1 for dynamic
 		glColorMask(false, false, true, true);
 
 		for (unsigned int i = 0; i < draw_queue.size(); i++)
@@ -791,7 +795,7 @@ void Renderer::pointShadowPass()
 			if (glm::length(object_bb_position - point_lights[k]->m_position) > 3)
 				continue;
 
-			depthShader_point->setMat4("model", *draw_queue[i].object_model_matrix);
+			depthShader_point.setMat4("model", *draw_queue[i].object_model_matrix);
 			glBindVertexArray(draw_queue[i].object_VAO);
 			glDrawElements(GL_TRIANGLES, draw_queue[i].indices_size, GL_UNSIGNED_INT, 0);
 			glBindVertexArray(0);
@@ -1125,7 +1129,7 @@ void Renderer::blurPass(unsigned int main_color_texture, unsigned int ssao_textu
 {
 	glDisable(GL_DEPTH_TEST);
 
-	bloomSSAO_blur_Shader->use();
+	bloomSSAO_blur_Shader.use();
 	first_iteration = true;
 
 	horizontal = true;
@@ -1135,16 +1139,16 @@ void Renderer::blurPass(unsigned int main_color_texture, unsigned int ssao_textu
 		glBindFramebuffer(GL_FRAMEBUFFER, PrimaryBlurringFramebuffers[horizontal]);
 		glDrawBuffers(2, &PrimaryBlurringFramebuffers_attachments[0]);
 
-		bloomSSAO_blur_Shader->setBool("horizontal", horizontal);
+		bloomSSAO_blur_Shader.setBool("horizontal", horizontal);
 
 		glViewport(0, 0, framebuffer_width / 4, framebuffer_height / 4);
 
 		glActiveTexture(GL_TEXTURE0);
-		bloomSSAO_blur_Shader->setInt("inputTexture_1", 0);
+		bloomSSAO_blur_Shader.setInt("inputTexture_1", 0);
 		glBindTexture(GL_TEXTURE_2D, first_iteration ? main_color_texture : PrimaryBlurringFramebuffer_bloom_textures[!horizontal]);
 
 		glActiveTexture(GL_TEXTURE1);
-		bloomSSAO_blur_Shader->setInt("inputTexture_2", 1);
+		bloomSSAO_blur_Shader.setInt("inputTexture_2", 1);
 		glBindTexture(GL_TEXTURE_2D, first_iteration ? ssao_texture : PrimaryBlurringFramebuffer_ssao_textures[!horizontal]);
 
 		glBindVertexArray(quadVAO);
@@ -1167,7 +1171,7 @@ void Renderer::SoftShadowPass(unsigned int amount)
 		glDisable(GL_DEPTH_TEST);
 		glViewport(0, 0, shadow_map_width * 4, 4 * shadow_map_height);
 
-		directional_shadow_blur_Shader->use();
+		directional_shadow_blur_Shader.use();
 		first_iteration = true;
 
 		horizontal = true;
@@ -1176,10 +1180,10 @@ void Renderer::SoftShadowPass(unsigned int amount)
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, DirectionalShadowBlurringFramebuffers[horizontal]);
 
-			directional_shadow_blur_Shader->setBool("horizontal", horizontal);
+			directional_shadow_blur_Shader.setBool("horizontal", horizontal);
 
 			glActiveTexture(GL_TEXTURE0);
-			directional_shadow_blur_Shader->setInt("inputTexture_1", 0);
+			directional_shadow_blur_Shader.setInt("inputTexture_1", 0);
 			glBindTexture(GL_TEXTURE_2D, first_iteration ? directional_shadow_depth_storage : DirectionalShadowBlurring_soft_shadow_textures[!horizontal]);
 
 			glBindVertexArray(quadVAO);
@@ -1230,31 +1234,31 @@ void Renderer::SSAOPass()
 	glClear(GL_COLOR_BUFFER_BIT);
 	glViewport(0, 0, framebuffer_width, framebuffer_height);
 
-	SSAOShader->use();
+	SSAOShader.use();
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_depth);
-	SSAOShader->setInt("depth_texture", 0);
+	SSAOShader.setInt("depth_texture", 0);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, DeferredGbuffer_normal);
-	SSAOShader->setInt("normal_texture", 1);
+	SSAOShader.setInt("normal_texture", 1);
 
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, random_rotation_texture);
-	SSAOShader->setInt("noise_texture", 2);
+	SSAOShader.setInt("noise_texture", 2);
 
 	std::stringstream ss;
 	for (unsigned int i = 0; i < ssao_kernel.size(); i++)
 	{
 		ss.str("");
 		ss << "[" << i << "]";
-		SSAOShader->setVec3("kernel" + ss.str(), ssao_kernel[i]);
+		SSAOShader.setVec3("kernel" + ss.str(), ssao_kernel[i]);
 	}
 
-	SSAOShader->setMat4("inv_projection", glm::inverse(*camera_projection_matrix));
-	SSAOShader->setMat4("projection", *camera_projection_matrix);
-	SSAOShader->setMat4("view", *camera_view_matrix);
+	SSAOShader.setMat4("inv_projection", glm::inverse(*camera_projection_matrix));
+	SSAOShader.setMat4("projection", *camera_projection_matrix);
+	SSAOShader.setMat4("view", *camera_view_matrix);
 
 	glBindVertexArray(quadVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 6);

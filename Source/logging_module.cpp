@@ -7,8 +7,6 @@
 
 using namespace xre;
 
-LogModule* LogModule::logger_instance = nullptr;
-
 LogModule::LogModule()
 	: m_log_level(0), m_log_level_filter(1), max_log_string_occurs(1)
 {
@@ -65,7 +63,7 @@ LogModule* LogModule::getLoggerInstance()
 {
 	if (logger_instance == nullptr)
 	{
-		logger_instance = new LogModule();
+		logger_instance = std::unique_ptr<LogModule>(new LogModule());
 	}
-	return logger_instance;
+	return logger_instance.get();
 }
