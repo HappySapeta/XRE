@@ -110,18 +110,6 @@ int main()
 	xre::PointLight point_light_1 = xre::PointLight(glm::vec3(8.0f, 2.0f, 0.0f), glm::vec3(1.0), 1, 0.7f, 1.8f, 35.0f, "pointLights[1]");
 	xre::PointLight point_light_2 = xre::PointLight(glm::vec3(-8.0f, 2.0f, 0.0f), glm::vec3(1.0), 1, 0.7f, 1.8f, 35.0f, "pointLights[2]");
 
-	xre::Model gun("./Source/Resources/Models/cerberus_PBR_obj/gun.obj", "gun",
-		aiProcess_Triangulate
-		| aiProcess_CalcTangentSpace
-		| aiProcess_OptimizeMeshes
-		| aiProcess_GenBoundingBoxes
-		| aiProcess_OptimizeGraph
-		| aiProcess_FlipUVs);
-	xre::Shader* gun_shader = NULL;
-	gun.dynamic = true;
-	gun.translate(glm::vec3(0.0f, 1.0f, 0.0f));
-	gun.scale(glm::vec3(1.0f));
-
 	xre::Model sponza("./Source/Resources/Models/sponza_PBR/sponza.obj", "sponza",
 		aiProcess_Triangulate
 		| aiProcess_CalcTangentSpace
@@ -138,8 +126,6 @@ int main()
 	{
 		sponza_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
 			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
-		gun_shader = new xre::Shader("./Source/Resources/Shaders/BlinnPhong/forward_bphong_vertex_shader.vert",
-			"./Source/Resources/Shaders/BlinnPhong/forward_bphong_fragment_shader.frag");
 	}
 
 	// Additional data
@@ -148,7 +134,6 @@ int main()
 
 	// Push objects to draw queue
 	sponza.draw(*sponza_shader, "sponza");
-	gun.draw(*gun_shader, "gun");
 	// ----------------------------------------
 	while (!glfwWindowShouldClose(window))
 	{
@@ -162,7 +147,6 @@ int main()
 
 		cm = camera.UpdateCamera(4.0f * delta_time.count(), 20.0f * delta_time.count());
 		renderer->setCameraMatrices(&cm.view, &cm.projection, &camera.position, &camera.front);
-		gun.rotate(glm::cos(glm::radians(glfwGetTime())) * 0.001, glm::vec3(0.0, 1.0, 0.0));
 
 		if (rendering_pipeline == xre::RENDER_PIPELINE::FORWARD)
 		{
@@ -174,16 +158,6 @@ int main()
 			sponza_shader->setFloat("shininess", 128);
 			sponza_shader->setFloat("positive_exponent", 20.0f);
 			sponza_shader->setFloat("negative_exponent", 80.0f);
-
-			gun_shader->use();
-			gun_shader->setMat4("view", cm.view);
-			gun_shader->setMat4("projection", cm.projection);
-			gun_shader->setMat4("model", gun.model_matrix);
-			gun_shader->setVec3("camera_position_vertex", camera.position);
-			gun_shader->setFloat("shininess", 128);
-			gun_shader->setFloat("positive_exponent", 20.0f);
-			gun_shader->setFloat("negative_exponent", 80.0f);
-
 		}
 
 		// Draw to screen
